@@ -10,9 +10,5 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": [
-    "apps",
-    "packages",
-    "tests"
-  ]
+  "include": ["apps", "packages", "tests"]
 }
