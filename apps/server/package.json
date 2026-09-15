@@ -1,0 +1,5 @@
+{
+  "name": "@boss-bot/server",
+  "private": true,
+  "type": "module"
+}
