@@ -1,11 +1,5 @@
 # Third-party notices
 
-## Architectural inspiration
-
-Rakazo — https://github.com/elie222/rakazo — Apache License 2.0.
-Boss Bot draws inspiration from its persistent AI teammate concept. No source
-files, code snippets, UI assets, or branding from Rakazo are included.
-
 ## Dependencies
 
 Dependencies are installed through npm with their own licenses and notices.
