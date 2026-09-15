@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { Connections, connectionInput } from "./connections.ts";
 import { Store } from "./store.ts";
 import { route, type AgentRuntime } from "../../../packages/core/src/index.ts";
 async function body(req: IncomingMessage) {
@@ -17,6 +18,7 @@ export function app(
   store: Store,
   providers: AgentRuntime[],
   webRoot = resolve("apps/web/dist"),
+  connections?: Connections,
 ) {
   const token = randomBytes(32).toString("hex");
   const server = createServer(async (req, res) => {
@@ -29,6 +31,10 @@ export function app(
       res.end(JSON.stringify(data));
     };
     try {
+      const activeProviders = [
+        ...providers,
+        ...(connections?.runtimes() || []),
+      ];
       const hostname = req.headers.host?.split(":")[0];
       if (!["localhost", "127.0.0.1"].includes(hostname || ""))
         return send(403, { error: "Local access only" });
@@ -60,9 +66,38 @@ export function app(
           return send(200, {
             agents: store.agents(),
             tasks: store.tasks(),
-            runtimes: providers.map((p) => p.info),
+            runtimes: activeProviders.map((p) => p.info),
+            connections: connections?.list() || [],
             token,
           });
+        if (
+          connections &&
+          req.method === "POST" &&
+          url.pathname === "/api/connections"
+        ) {
+          return send(
+            201,
+            connections.add(connectionInput.parse(await body(req))),
+          );
+        }
+        const connectionAction = url.pathname.match(
+          /^\/api\/connections\/([^/]+)(?:\/(verify|repositories))?$/,
+        );
+        if (connections && connectionAction) {
+          const id = z.string().uuid().parse(connectionAction[1]);
+          if (req.method === "DELETE" && !connectionAction[2]) {
+            connections.remove(id);
+            return send(200, { ok: true });
+          }
+          if (req.method === "POST" && connectionAction[2] === "verify")
+            return send(200, await connections.verify(id));
+          if (req.method === "POST" && connectionAction[2] === "repositories") {
+            const { page } = z
+              .object({ page: z.number().int().min(1).max(1000).default(1) })
+              .parse(await body(req));
+            return send(200, await connections.repositories(id, page));
+          }
+        }
         if (req.method === "POST" && url.pathname === "/api/agents") {
           const data = z
             .object({
@@ -92,7 +127,7 @@ export function app(
             })
             .parse(await body(req));
           route(
-            providers.map((p) => p.info),
+            activeProviders.map((p) => p.info),
             "local",
             data.runtimeId,
             ["text"],
@@ -116,7 +151,7 @@ export function app(
             return send(store.reject(task.id) ? 200 : 409, { ok: true });
           if (req.method === "POST" && action[2] === "approve") {
             route(
-              providers.map((p) => p.info),
+              activeProviders.map((p) => p.info),
               "local",
               task.runtimeId,
               ["text"],
@@ -124,7 +159,7 @@ export function app(
             if (!store.claim(task.id))
               return send(409, { error: "Task has already been reviewed." });
             const agent = store.agents().find((a) => a.id === task.agentId)!;
-            const runtime = providers.find(
+            const runtime = activeProviders.find(
               (p) => p.info.id === task.runtimeId,
             )!;
             const signal = AbortSignal.timeout(180000);

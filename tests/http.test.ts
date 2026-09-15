@@ -117,3 +117,91 @@ test("HTTP workflow persists results and rejects forged or repeated approvals", 
     store.close();
   }
 });
+
+test("connection API protects credentials and disconnect blocks pending AI work", async () => {
+  const { Connections } = await import("../apps/server/src/connections.ts");
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "boss-http-connections-"));
+  const store = new Store(":memory:");
+  const vault = new Connections(dir);
+  const server = app(store, [], undefined, vault);
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address() as { port: number };
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const state = await (await fetch(base + "/api/state")).json();
+    const headers = {
+      "Content-Type": "application/json",
+      "x-boss-token": state.token,
+    };
+    const input = {
+      provider: "claude",
+      label: "Work Claude",
+      secret: "never-return-this-key",
+      model: "test-model",
+    };
+    assert.equal(
+      (
+        await fetch(base + "/api/connections", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        })
+      ).status,
+      403,
+    );
+    const saved = await fetch(base + "/api/connections", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(input),
+    });
+    assert.equal(saved.status, 201);
+    const c = await saved.json();
+    assert.ok(!JSON.stringify(c).includes(input.secret));
+    const fresh = await (await fetch(base + "/api/state")).json();
+    assert.ok(!JSON.stringify(fresh).includes(input.secret));
+    assert.equal(fresh.runtimes[0].billing, "api");
+    const task = await (
+      await fetch(base + "/api/tasks", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          agentId: state.agents[0].id,
+          prompt: "Test",
+          runtimeId: fresh.runtimes[0].id,
+        }),
+      })
+    ).json();
+    assert.ok(task.id);
+    assert.equal(
+      (
+        await fetch(base + `/api/connections/${c.id}`, {
+          method: "DELETE",
+          headers,
+          body: "{}",
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await fetch(base + `/api/tasks/${task.id}/approve`, {
+          method: "POST",
+          headers,
+          body: "{}",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(store.tasks()[0].status, "awaiting_approval");
+  } finally {
+    server.close();
+    await once(server, "close");
+    vault.close();
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

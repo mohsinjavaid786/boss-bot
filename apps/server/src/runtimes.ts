@@ -29,6 +29,7 @@ async function request(
 ) {
   const response = await fetch(url, {
     method: "POST",
+    redirect: "error",
     headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
     signal,
@@ -39,13 +40,13 @@ async function request(
     );
   return response.json();
 }
-export function runtimes(): AgentRuntime[] {
+export function runtimes(env: NodeJS.ProcessEnv = process.env): AgentRuntime[] {
   return [
     {
       info: info(
         "codex",
         "Codex",
-        !!process.env.BOSS_CODEX_HOME,
+        !!env.BOSS_CODEX_HOME,
         "subscription",
         "Uses a dedicated local Codex login. Read-only sandbox; local files may be readable.",
       ),
@@ -55,7 +56,7 @@ export function runtimes(): AgentRuntime[] {
         try {
           await new Promise<void>((resolve, reject) => {
             const child = spawn(
-              process.env.BOSS_CODEX_BIN || "codex",
+              env.BOSS_CODEX_BIN || "codex",
               [
                 "exec",
                 "--ignore-user-config",
@@ -76,9 +77,9 @@ export function runtimes(): AgentRuntime[] {
                 signal,
                 stdio: ["pipe", "ignore", "ignore"],
                 env: {
-                  PATH: process.env.PATH,
-                  HOME: process.env.HOME,
-                  CODEX_HOME: process.env.BOSS_CODEX_HOME,
+                  PATH: env.PATH,
+                  HOME: env.HOME,
+                  CODEX_HOME: env.BOSS_CODEX_HOME,
                 },
               },
             );
@@ -115,16 +116,16 @@ export function runtimes(): AgentRuntime[] {
       info: info(
         "openai",
         "OpenAI API",
-        !!(process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL),
+        !!(env.OPENAI_API_KEY && env.OPENAI_MODEL),
         "api",
         "Text generation billed to your configured OpenAI API key.",
       ),
       async execute(input, signal) {
         const data = await request(
           "https://api.openai.com/v1/responses",
-          { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+          { Authorization: `Bearer ${env.OPENAI_API_KEY}` },
           {
-            model: process.env.OPENAI_MODEL,
+            model: env.OPENAI_MODEL,
             instructions: input.instructions + "\nMemory:\n" + input.memory,
             input: input.prompt,
             max_output_tokens: 4096,
@@ -144,7 +145,7 @@ export function runtimes(): AgentRuntime[] {
       info: info(
         "claude",
         "Claude API",
-        !!(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL),
+        !!(env.ANTHROPIC_API_KEY && env.ANTHROPIC_MODEL),
         "api",
         "Text generation through the Anthropic API. Subscription login is not supported.",
       ),
@@ -152,11 +153,11 @@ export function runtimes(): AgentRuntime[] {
         const data = await request(
           "https://api.anthropic.com/v1/messages",
           {
-            "x-api-key": process.env.ANTHROPIC_API_KEY!,
+            "x-api-key": env.ANTHROPIC_API_KEY!,
             "anthropic-version": "2023-06-01",
           },
           {
-            model: process.env.ANTHROPIC_MODEL,
+            model: env.ANTHROPIC_MODEL,
             max_tokens: 4096,
             system: input.instructions + "\nMemory:\n" + input.memory,
             messages: [{ role: "user", content: input.prompt }],
@@ -175,14 +176,14 @@ export function runtimes(): AgentRuntime[] {
       info: info(
         "gemini",
         "Gemini API",
-        !!(process.env.GEMINI_API_KEY && process.env.GEMINI_MODEL),
+        !!(env.GEMINI_API_KEY && env.GEMINI_MODEL),
         "api",
         "Text generation through the Gemini API. Account-based CLI connection is planned.",
       ),
       async execute(input, signal) {
         const data = await request(
-          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(process.env.GEMINI_MODEL!)}:generateContent`,
-          { "x-goog-api-key": process.env.GEMINI_API_KEY! },
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(env.GEMINI_MODEL!)}:generateContent`,
+          { "x-goog-api-key": env.GEMINI_API_KEY! },
           {
             systemInstruction: {
               parts: [
