@@ -100,6 +100,3 @@ npm run build
 
 Routing does not pool personal subscriptions across teammates or bypass provider limits. Each future credential connection must remain scoped to its authorized owner.
 
-## License and inspiration
-
-Boss Bot's original code is MIT licensed. [Rakazo](https://github.com/elie222/rakazo) inspired the persistent-agent product direction. No Rakazo source code or assets were copied. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); any future source reuse must preserve its applicable license and notices.
