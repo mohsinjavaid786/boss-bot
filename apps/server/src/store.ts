@@ -31,6 +31,6 @@ export class Store {
  claim(id:string){let claimed=false;this.transaction(()=>{claimed=!!this.db.prepare("UPDATE tasks SET status='running',updatedAt=? WHERE id=? AND status='awaiting_approval'").run(new Date().toISOString(),id).changes;if(claimed)this.event(id,'approved');});return claimed;}
  reject(id:string){let changed=false;this.transaction(()=>{changed=!!this.db.prepare("UPDATE tasks SET status='rejected',updatedAt=? WHERE id=? AND status='awaiting_approval'").run(new Date().toISOString(),id).changes;if(changed)this.event(id,'rejected');});return changed;}
  finish(id:string,status:'completed'|'failed'|'interrupted',output:string){this.transaction(()=>{const result=this.db.prepare("UPDATE tasks SET status=?,output=?,updatedAt=? WHERE id=? AND status='running'").run(status,output,new Date().toISOString(),id);if(result.changes)this.event(id,status);});}
- events(id:string){return this.db.prepare('SELECT event,createdAt FROM events WHERE taskId=? ORDER BY id').all();}
+ events(id:string){return this.db.prepare('SELECT event,createdAt FROM events WHERE taskId=? ORDER BY id').all(id);}
  close(){this.db.close();}
 }
