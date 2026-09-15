@@ -2,7 +2,7 @@
 
 Goal: ship the first runnable foundation of the internal workforce platform.
 Architecture: React web app, loopback Node service, SQLite persistence, separate runtime and policy package.
-Spec: architecture.md. Node 22.22+; no copied Rakazo code. Small commits.
+Spec: architecture.md. Node 22.22+; original implementation with preserved dependency notices. Small commits.
 
 1. Write tests for owner/capability routing, unavailable runtimes, durable memory, duplicate approvals and restart interruption. Verify failures, then implement core and store. Commit.
 2. Add authenticated local HTTP endpoints, validated input, task approval execution and bounded runtime adapters. Check type safety and integration tests. Commit.

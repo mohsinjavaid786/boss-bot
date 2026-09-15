@@ -14,6 +14,14 @@ Persist each task before execution. All initial tasks require explicit owner app
 
 Runtime credentials remain server-side. Codex runs locally through the official CLI using its existing login, read-only sandbox and approvals disabled (requests for escalation fail). It is opt-in because read-only shell execution still has access to local readable information. API adapters are text-only in this milestone. Match runtime capabilities before dispatch. Never silently charge API usage: the owner explicitly chooses an API runtime. No cross-user subscription pooling or quota bypass.
 
+## Reuse evaluation and expanded account requirements
+
+The September 15 follow-up prioritizes evaluating existing foundations before expanding the custom backend. See [alternatives review](alternatives-review-2026-09-15.md) and [multi-account requirements](multi-account-requirements.md). Paperclip is the first candidate; Grok Bot informs the proposed conversation-led experience. This does not change the capabilities of the shipped first milestone.
+
+## Daily product experience
+
+The current task/configuration portal is a foundation. The target is a persistent chat workspace with bots, inline approvals and artifacts, followed by a desktop client using the same backend. See [chat and desktop requirements](chat-and-desktop.md). Subscription-first execution is the goal; optional API adapters do not satisfy the unresolved Claude subscription integration requirement.
+
 ## Milestones
 
 1. Durable local workspace, agents, memory, audited task approvals, runtime contracts and text execution.
