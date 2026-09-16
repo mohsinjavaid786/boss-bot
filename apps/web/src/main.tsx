@@ -127,7 +127,9 @@ function App() {
   const pending = state.tasks.filter((t) => t.status === "awaiting_approval"),
     running = state.tasks.filter((t) => t.status === "running"),
     completed = state.tasks.filter((t) => t.status === "completed");
-  const available = state.runtimes.filter((r) => r.available);
+  const available = state.runtimes.filter(
+    (r) => r.available && r.id !== "claude-native",
+  );
   const currentTask = task
     ? state.tasks.find((t) => t.id === task.id) || task
     : null;
@@ -502,7 +504,11 @@ function App() {
               <h2>Host environment runtimes</h2>
               <div className="connectiongrid">
                 {state.runtimes
-                  .filter((r) => !r.id.startsWith("connection:"))
+                  .filter(
+                    (r) =>
+                      !r.id.startsWith("connection:") &&
+                      r.id !== "claude-native",
+                  )
                   .map((r) => (
                     <article className="connection" key={r.id}>
                       <div className="sectionheading">

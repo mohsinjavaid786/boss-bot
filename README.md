@@ -46,6 +46,7 @@ Open **Connections → Add account**. Give each account a recognizable label. Yo
 - **Codex subscription:** sign in through the official CLI with a dedicated `CODEX_HOME` for each account, then save its absolute directory path. Select the labeled account in New task. No API key is needed. The directory must exist on the server; saving does not validate the login or add allowance. Two records pointing at the same login share the same quota.
 - **GitHub:** save a fine-grained personal access token limited to the repositories you want. Read-only metadata is sufficient for listing. Select **Verify account**, then **Repositories**. Organization approval may be required.
 - **GitLab.com:** save a personal access token with `read_api`, verify it, then browse projects where you are a member.
+- **Claude Code subscription:** save a dedicated native login directory; approved tasks run automatically through the installed CLI. See setup below.
 - **Claude API:** save a Claude Console API key and an available model ID. This explicitly uses API credits; it is not a Claude subscription connection.
 
 Git connections currently provide a paginated, read-only repository browser with links to your projects. They do not yet give bots code access, clone repositories, create pull requests or connect self-hosted GitLab/GitHub Enterprise. Tokens are sent only to the fixed provider API host, and redirects are refused.
@@ -54,25 +55,34 @@ Git connections currently provide a paginated, read-only repository browser with
 
 ## Subscription support
 
-| Connection                         | Current position                                                                                                                                                      |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ChatGPT / Codex subscription       | Local CLI adapter implemented. Uses your own dedicated Codex login. No API key required.                                                                              |
-| Claude subscription                | Native task handoff implemented: approve, copy into your own Claude Code session, and import the reviewed result. No SDK subscription routing or automatic execution. |
-| Multiple accounts for one provider | Implemented for this local owner: multiple labeled Codex directories, Claude API keys, GitHub and GitLab tokens. Team ownership and quota reporting are planned.      |
-| Gemini subscription                | Not implemented. Eligible Gemini CLI account use needs a separate integration review.                                                                                 |
-| API credentials                    | Optional text-only adapters. Explicit selection required; automatic fallback is disabled.                                                                             |
+| Connection                         | Current position                                                                                                                                                 |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ChatGPT / Codex subscription       | Local CLI adapter implemented. Uses your own dedicated Codex login. No API key required.                                                                         |
+| Claude subscription                | Local Claude Code adapter implemented: approved tasks run automatically with a checked subscription login. Live validation requires a signed-in account.         |
+| Multiple accounts for one provider | Implemented for this local owner: multiple labeled Codex directories, Claude API keys, GitHub and GitLab tokens. Team ownership and quota reporting are planned. |
+| Gemini subscription                | Not implemented. Eligible Gemini CLI account use needs a separate integration review.                                                                            |
+| API credentials                    | Optional text-only adapters. Explicit selection required; automatic fallback is disabled.                                                                        |
 
-The full goal of using **both Claude and ChatGPT subscriptions inside one Boss Bot chat experience is not yet met**. Native Claude handoff is a manual workflow; it is not automatic in-app execution. Any unified Claude subscription connection needs an officially permitted path.
+The full goal of using **both Claude and ChatGPT subscriptions inside one Boss Bot chat experience is not yet met**. Both local CLI adapters now execute approved text tasks. Shared chat, persistent native sessions and full team isolation remain unfinished.
 
 References: [Codex authentication](https://developers.openai.com/codex/auth/), [Claude credential rules](https://code.claude.com/docs/en/legal-and-compliance), [Claude Remote Control](https://code.claude.com/docs/en/remote-control), [Gemini CLI authentication](https://geminicli.com/docs/get-started/authentication/).
 
-## Use your Claude subscription through a native handoff
+## Run tasks with your Claude subscription
 
-Choose **Claude Code · native handoff** in New task, then **Approve handoff**. Boss Bot saves a snapshot of the task and agent context. Open a terminal in your chosen working folder, run the unmodified `claude` CLI, sign in through its own flow and check `/status` for the active account and billing. Copy the approved task into Claude and review permissions there. Paste the reviewed answer back into Boss Bot using **Save reviewed result**.
+Install the official Claude Code CLI, create a dedicated account directory, and sign in through Claude's own flow:
 
-Boss Bot never reads your Claude login or chooses native billing. An API-configured Claude session may use API credits, so verify the native session before submitting work. Imported results are labeled as supplied by you; the server has not independently verified execution. Native handoffs remain pending across server restarts.
+```sh
+mkdir -p "$PWD/data/claude-home"
+CLAUDE_CONFIG_DIR="$PWD/data/claude-home" claude auth login
+```
 
-See the [DevAgent assessment](docs/devagent-assessment.md) for the subscription mechanism, useful architecture, and the distinction between native CLI use and third-party SDK routing.
+In **Connections → Add account → Claude Code subscription**, enter that absolute directory path and a label. Select the saved account in **New task**, then approve. Boss Bot invokes the installed CLI and saves the answer automatically. You do not need to copy prompts or results.
+
+Alternatively set `BOSS_CLAUDE_HOME`, `BOSS_CLAUDE_BIN` (an absolute binary path if needed), and optionally `BOSS_CLAUDE_MODEL` in `.env`. Restart after changing environment settings. The CLI must support `auth status --json`, `--safe-mode`, `--setting-sources`, `--tools`, and `--no-session-persistence`.
+
+This is an experimental local-owner integration. Before each task, the adapter requires the CLI to report a logged-in `claude.ai` account and a recognized subscription type. API/cloud credentials are not forwarded; invalid or unknown authentication fails instead of falling back. Credentials stay managed by Claude Code. Multiple saved directories are supported; their actual identity and allowance are determined by the CLI and may share an account, depending on platform credential storage. Subscription extra usage and spending controls remain governed by your account settings.
+
+The first version handles text tasks with tools and customizations disabled. It starts a fresh session per task. This does not yet provide repository editing, persistent Claude conversations, or pooled team subscriptions. Provider terms still apply; this implementation is not a claim of provider endorsement or general SDK subscription authorization. Live execution must be verified after you sign in. Existing manual-handoff tasks remain readable and completable.
 
 ## What you can do today
 

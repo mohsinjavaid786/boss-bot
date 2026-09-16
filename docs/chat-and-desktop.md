@@ -6,7 +6,7 @@ Status: next-milestone requirements, not shipped features.
 
 People should work with persistent bots through conversation. The configuration portal is an administrative surface, not the final daily product.
 
-The preferred execution path uses existing, legitimately owned subscriptions. ChatGPT/Codex is the first supported integration target. Claude subscription usage in an embedded Boss Bot runtime remains blocked on an officially permitted integration; an API adapter or a link to native Claude does not satisfy that requirement.
+The preferred execution path uses existing, legitimately owned subscriptions. ChatGPT/Codex is the first supported integration target. The local-owner preview now has an experimental Claude Code CLI adapter that executes approved text tasks using a checked native subscription login. Full shared chat, native conversation continuity and isolated multi-user execution remain requirements.
 
 ## Conversation workspace
 
@@ -37,6 +37,6 @@ No desktop framework is selected by this document. Packaging must follow the sel
 
 Anthropic's Remote Control can connect its browser/mobile client to an eligible local Claude Code subscription session. That is useful for a separate native workflow. It is not evidence that Boss Bot may embed the Claude login flow, store subscription tokens or route requests through them.
 
-If a companion handoff is implemented, label it as opening Claude, keep authentication in Anthropic's own flow, and do not claim the conversation runs inside Boss Bot. No native-session handoff is implemented in the preview.
+If a companion handoff is implemented, label it as opening Claude, keep authentication in Anthropic's own flow, and do not claim the conversation runs inside Boss Bot. Legacy manual-handoff tasks remain supported; new tasks should select the automatic local Claude Code adapter.
 
 References: [Claude Remote Control](https://code.claude.com/docs/en/remote-control), [credential rules](https://code.claude.com/docs/en/legal-and-compliance).

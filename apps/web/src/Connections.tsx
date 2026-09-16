@@ -15,6 +15,7 @@ const names = {
   gitlab: "GitLab",
   codex: "Codex subscription",
   claude: "Claude API",
+  "claude-code": "Claude Code subscription",
 };
 export function ConnectionManager({
   connections,
@@ -178,6 +179,23 @@ export function ConnectionManager({
               </p>
             </div>
           )}
+          {provider === "claude-code" && (
+            <div>
+              <p>
+                Sign in through your installed Claude Code CLI, then save its
+                account directory here. Approved tasks run automatically and
+                their answers return to Boss Bot.
+              </p>
+              <pre>
+                CLAUDE_CONFIG_DIR=/absolute/path/to/account claude auth login
+              </pre>
+              <p>
+                Use a dedicated directory for each account. Boss Bot checks for
+                a Claude subscription login before execution. Tools are disabled
+                for this initial text-task runtime.
+              </p>
+            </div>
+          )}
           {provider === "claude" && (
             <p>
               This connection uses <strong>API credits</strong>. Obtain a key
@@ -189,31 +207,38 @@ export function ConnectionManager({
               >
                 Claude Console
               </a>
-              . For a Claude subscription, use the native app described below.
+              . For a Claude subscription, choose Claude Code subscription
+              above.
             </p>
           )}
           <label>
-            {provider === "codex"
-              ? "Dedicated Codex directory"
-              : provider === "claude"
-                ? "API key"
-                : "Access token"}
+            {provider === "claude-code"
+              ? "Dedicated Claude Code directory"
+              : provider === "codex"
+                ? "Dedicated Codex directory"
+                : provider === "claude"
+                  ? "API key"
+                  : "Access token"}
             <input
               key={provider}
               name="secret"
-              type={provider === "codex" ? "text" : "password"}
+              type={
+                ["codex", "claude-code"].includes(provider)
+                  ? "text"
+                  : "password"
+              }
               autoComplete="off"
               required
               maxLength={8000}
               disabled={busy}
             />
           </label>
-          {provider === "claude" && (
+          {["claude", "claude-code"].includes(provider) && (
             <label>
               Model ID
               <input
                 name="model"
-                required
+                required={provider === "claude"}
                 maxLength={120}
                 placeholder="Enter a model available to your API account"
                 disabled={busy}
@@ -268,8 +293,8 @@ export function ConnectionManager({
             <p className="muted">
               {c.provider === "claude"
                 ? `API credits · ${c.model}`
-                : c.provider === "codex"
-                  ? "Your ChatGPT allowance · explicit task selection"
+                : ["codex", "claude-code"].includes(c.provider)
+                  ? "Your subscription · explicit task selection"
                   : "Read-only repository browser"}
             </p>
             <div className="account-actions">
@@ -357,21 +382,13 @@ export function ConnectionManager({
         </section>
       )}
       <aside className="setup">
-        <h3>Using your Claude subscription</h3>
+        <h3>Claude subscription tasks</h3>
         <p>
-          Sign in directly in the unmodified Claude Code or Claude app. Boss Bot
-          does not collect Claude subscription tokens or route tasks through
-          them. Choose “Claude Code · native handoff” in New task to prepare a
-          task, run it in your own Claude session, and save the reviewed result
-          back here. Execution and billing stay in the native app.
+          Add a Claude Code subscription account, then select its label in New
+          task. Boss Bot uses the installed CLI and brings the answer back
+          automatically after approval. API credentials are a separate runtime.
+          The manual handoff remains available for existing tasks.
         </p>
-        <a
-          href="https://code.claude.com/docs/en/remote-control"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Set up native Claude Remote Control <ExternalLink size={13} />
-        </a>
       </aside>
     </section>
   );

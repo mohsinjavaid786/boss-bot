@@ -12,7 +12,7 @@ Each saved connection has a UUID, provider, human-readable label, model where re
 
 GitHub.com and GitLab.com connections can verify identity and list 30 repositories per page. Requests use fixed HTTPS origins, authorization headers, a timeout and refused redirects. Provider error bodies are not exposed. Only checked HTTPS provider links are returned to the UI. There is no repository write access exposed by Boss Bot, even if a user supplies a broader token.
 
-Claude API and dedicated Codex CLI directories produce separate selectable runtimes without changing the process environment. Saving is not a live AI verification. The normal task approval boundary applies. Native Codex credential files remain managed by Codex; the vault encrypts the directory reference. The Claude native subscription workflow remains separate because third-party credential routing is not an officially supported integration path.
+Claude API and dedicated Codex CLI directories produce separate selectable runtimes without changing the process environment. Saving is not a live AI verification. The normal task approval boundary applies. Native Codex credential files remain managed by Codex; the vault encrypts the directory reference. Claude Code subscription connections invoke an installed local CLI after checking its native authentication status. This experimental local-owner integration does not forward API credentials or provide pooled team access. Provider terms still apply.
 
 ## Next boundary
 
