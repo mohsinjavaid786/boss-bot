@@ -140,13 +140,23 @@ export function app(
           );
         }
         const action = url.pathname.match(
-          /^\/api\/tasks\/([^/]+)\/(approve|reject|events)$/,
+          /^\/api\/tasks\/([^/]+)\/(approve|reject|events|native-prompt|native-result)$/,
         );
         if (action) {
           const task = store.tasks().find((t) => t.id === action[1]);
           if (!task) return send(404, { error: "Task not found" });
           if (req.method === "GET" && action[2] === "events")
             return send(200, store.events(task.id));
+          if (req.method === "GET" && action[2] === "native-prompt")
+            return send(200, { prompt: store.nativePrompt(task.id) });
+          if (req.method === "POST" && action[2] === "native-result") {
+            const { output } = z
+              .object({ output: z.string().trim().min(1).max(24000) })
+              .parse(await body(req));
+            return send(store.importNative(task.id, output) ? 200 : 409, {
+              ok: true,
+            });
+          }
           if (req.method === "POST" && action[2] === "reject")
             return send(store.reject(task.id) ? 200 : 409, { ok: true });
           if (req.method === "POST" && action[2] === "approve") {
@@ -156,6 +166,8 @@ export function app(
               task.runtimeId,
               ["text"],
             );
+            if (task.runtimeId === "claude-native")
+              return send(store.handoff(task.id) ? 202 : 409, { ok: true });
             if (!store.claim(task.id))
               return send(409, { error: "Task has already been reviewed." });
             const agent = store.agents().find((a) => a.id === task.agentId)!;

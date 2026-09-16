@@ -44,6 +44,18 @@ export function runtimes(env: NodeJS.ProcessEnv = process.env): AgentRuntime[] {
   return [
     {
       info: info(
+        "claude-native",
+        "Claude Code · native handoff",
+        true,
+        "subscription",
+        "Prepare a task for your own Claude Code session. You run it there and paste the result back; Boss Bot does not execute it.",
+      ),
+      async execute() {
+        throw new Error("Native Claude tasks require a user handoff.");
+      },
+    },
+    {
+      info: info(
         "codex",
         "Codex",
         !!env.BOSS_CODEX_HOME,

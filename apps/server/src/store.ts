@@ -9,6 +9,7 @@ export class Store {
    CREATE TABLE IF NOT EXISTS agents(id TEXT PRIMARY KEY,name TEXT NOT NULL,role TEXT NOT NULL,instructions TEXT NOT NULL,memory TEXT NOT NULL DEFAULT '',color TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY,agentId TEXT NOT NULL REFERENCES agents(id),prompt TEXT NOT NULL,runtimeId TEXT NOT NULL,status TEXT NOT NULL,output TEXT NOT NULL DEFAULT '',createdAt TEXT NOT NULL,updatedAt TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT,taskId TEXT NOT NULL,event TEXT NOT NULL,createdAt TEXT NOT NULL);
+   CREATE TABLE IF NOT EXISTS native_handoffs(taskId TEXT PRIMARY KEY REFERENCES tasks(id),prompt TEXT NOT NULL);
    PRAGMA user_version=1;`);
     if (!this.agents().length) {
       this.addAgent(
@@ -125,6 +126,53 @@ export class Store {
         .run(status, output, new Date().toISOString(), id);
       if (result.changes) this.event(id, status);
     });
+  }
+  handoff(id: string) {
+    let changed = false;
+    this.transaction(() => {
+      const task = this.tasks().find((t) => t.id === id);
+      if (
+        !task ||
+        task.runtimeId !== "claude-native" ||
+        task.status !== "awaiting_approval"
+      )
+        return;
+      const agent = this.agents().find((a) => a.id === task.agentId)!;
+      const prompt = `Boss Bot task ${task.id}\n\nRole: ${agent.name} — ${agent.role}\n\nInstructions:\n${agent.instructions}\n\nOwner-curated memory:\n${agent.memory}\n\nTask:\n${task.prompt}\n\nReturn a clear result for the owner to bring back to Boss Bot. Do not claim that Boss Bot has saved it.`;
+      this.db
+        .prepare("INSERT INTO native_handoffs VALUES(?,?)")
+        .run(id, prompt);
+      this.db
+        .prepare(
+          "UPDATE tasks SET status='awaiting_native',updatedAt=? WHERE id=?",
+        )
+        .run(new Date().toISOString(), id);
+      this.event(id, "native_handoff_approved");
+      changed = true;
+    });
+    return changed;
+  }
+  nativePrompt(id: string): string {
+    const row = this.db
+      .prepare("SELECT prompt FROM native_handoffs WHERE taskId=?")
+      .get(id);
+    if (!row)
+      throw new Error(
+        "Approve the native handoff before exporting its context.",
+      );
+    return String(row.prompt);
+  }
+  importNative(id: string, output: string) {
+    let changed = false;
+    this.transaction(() => {
+      changed = !!this.db
+        .prepare(
+          "UPDATE tasks SET status='completed',output=?,updatedAt=? WHERE id=? AND status='awaiting_native' AND runtimeId='claude-native'",
+        )
+        .run(output, new Date().toISOString(), id).changes;
+      if (changed) this.event(id, "native_result_imported");
+    });
+    return changed;
   }
   events(id: string) {
     return this.db

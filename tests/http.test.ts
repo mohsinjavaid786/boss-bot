@@ -205,3 +205,86 @@ test("connection API protects credentials and disconnect blocks pending AI work"
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("native handoff API never executes a runtime and rejects duplicate result imports", async () => {
+  const store = new Store(":memory:");
+  let calls = 0;
+  const server = app(store, [
+    {
+      info: {
+        id: "claude-native",
+        name: "Native Claude",
+        ownerId: "local",
+        available: true,
+        billing: "subscription",
+        capabilities: ["text"],
+        description: "User operated",
+      },
+      async execute() {
+        calls++;
+        throw new Error("Must not execute");
+      },
+    },
+  ]);
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  try {
+    const state = await (await fetch(base + "/api/state")).json();
+    const headers = {
+      "Content-Type": "application/json",
+      "x-boss-token": state.token,
+    };
+    const post = (path: string, data: unknown = {}) =>
+      fetch(base + path, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(data),
+      });
+    const task = await (
+      await post("/api/tasks", {
+        agentId: state.agents[0].id,
+        prompt: "Native test",
+        runtimeId: "claude-native",
+      })
+    ).json();
+    assert.equal(
+      (await fetch(base + `/api/tasks/${task.id}/native-prompt`)).status,
+      400,
+    );
+    assert.equal((await post(`/api/tasks/${task.id}/approve`)).status, 202);
+    assert.equal((await post(`/api/tasks/${task.id}/approve`)).status, 409);
+    assert.equal(calls, 0);
+    assert.match(
+      (await (await fetch(base + `/api/tasks/${task.id}/native-prompt`)).json())
+        .prompt,
+      /Native test/,
+    );
+    assert.equal(
+      (await post(`/api/tasks/${task.id}/native-result`, { output: "  " }))
+        .status,
+      400,
+    );
+    assert.equal(
+      (
+        await post(`/api/tasks/${task.id}/native-result`, {
+          output: "Reviewed answer",
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await post(`/api/tasks/${task.id}/native-result`, {
+          output: "Overwrite",
+        })
+      ).status,
+      409,
+    );
+    assert.equal(store.tasks()[0].output, "Reviewed answer");
+  } finally {
+    server.close();
+    await once(server, "close");
+    store.close();
+  }
+});

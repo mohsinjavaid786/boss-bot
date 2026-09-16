@@ -23,6 +23,7 @@ export interface Task {
   runtimeId: string;
   status:
     | "awaiting_approval"
+    | "awaiting_native"
     | "running"
     | "completed"
     | "failed"
