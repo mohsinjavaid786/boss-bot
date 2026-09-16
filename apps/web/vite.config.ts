@@ -8,5 +8,5 @@ export default defineConfig({
     strictPort: true,
     proxy: { "/api": "http://127.0.0.1:4310" },
   },
-  build: { outDir: "dist" },
+  build: { outDir: "dist", rollupOptions: { maxParallelFileOps: 64 } },
 });

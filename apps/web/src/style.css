@@ -1335,3 +1335,89 @@ footer small {
     scroll-behavior: auto !important;
   }
 }
+
+.managed-connections {
+  margin-bottom: 36px;
+}
+.managed-connections > .sectionheading {
+  align-items: flex-start;
+  gap: 20px;
+}
+.managed-connections .sectionheading p {
+  max-width: 580px;
+  color: var(--muted, #667085);
+  line-height: 1.6;
+}
+.managed-connections .setup {
+  margin: 22px 0;
+}
+.account-form {
+  max-width: 720px;
+}
+.account-form label {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  font-weight: 600;
+}
+.account-form input,
+.account-form select {
+  width: 100%;
+  border: 1px solid #d6dfe5;
+  border-radius: 8px;
+  padding: 12px;
+  background: white;
+  font: inherit;
+  color: #223947;
+}
+.account-form pre {
+  overflow-x: auto;
+  padding: 12px;
+  background: #eef2f5;
+  border-radius: 8px;
+}
+.managed-connections a {
+  color: #315ed6;
+}
+.account-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 20px;
+}
+.account-actions button {
+  border: 1px solid #d6dfe5;
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: #fff;
+}
+.connection-error {
+  color: #9b2929;
+  padding: 14px;
+  background: #fff0ef;
+  border-radius: 8px;
+}
+.repository-list {
+  padding: 0;
+  list-style: none;
+}
+.repository-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e6ebef;
+}
+.repository-list a {
+  overflow-wrap: anywhere;
+}
+.repository-list span {
+  color: #667085;
+  font-size: 12px;
+}
+@media (max-width: 650px) {
+  .managed-connections > .sectionheading {
+    flex-direction: column;
+  }
+}

@@ -26,11 +26,14 @@ import type {
   RuntimeInfo,
 } from "../../../packages/core/src/index.ts";
 import "./style.css";
+import { ConnectionManager } from "./Connections";
+import type { SavedConnection } from "../../server/src/connections.ts";
 type State = {
   agents: Agent[];
   tasks: Task[];
   runtimes: RuntimeInfo[];
   token: string;
+  connections: SavedConnection[];
 };
 type Page = "Overview" | "Your team" | "Tasks" | "Approvals" | "Connections";
 const labels: Record<Task["status"], string> = {
@@ -489,32 +492,42 @@ function App() {
           )}
           {page === "Connections" && (
             <>
+              <ConnectionManager
+                connections={state.connections || []}
+                token={state.token}
+                refresh={refresh}
+              />
+              <h2>Host environment runtimes</h2>
               <div className="connectiongrid">
-                {state.runtimes.map((r) => (
-                  <article className="connection" key={r.id}>
-                    <div className="sectionheading">
-                      <div className={"providerlogo " + r.id}>{r.name[0]}</div>
-                      <span
-                        className={
-                          "badge " +
-                          (r.available ? "completed" : "disconnected")
-                        }
-                      >
-                        {r.available ? "Configured" : "Not configured"}
-                      </span>
-                    </div>
-                    <h2>{r.name}</h2>
-                    <p>{r.description}</p>
-                    <div className="connectionfoot">
-                      <span>
-                        {r.billing === "api"
-                          ? "API credits"
-                          : "Your subscription"}
-                      </span>
-                      <span>Text tasks</span>
-                    </div>
-                  </article>
-                ))}
+                {state.runtimes
+                  .filter((r) => !r.id.startsWith("connection:"))
+                  .map((r) => (
+                    <article className="connection" key={r.id}>
+                      <div className="sectionheading">
+                        <div className={"providerlogo " + r.id}>
+                          {r.name[0]}
+                        </div>
+                        <span
+                          className={
+                            "badge " +
+                            (r.available ? "completed" : "disconnected")
+                          }
+                        >
+                          {r.available ? "Configured" : "Not configured"}
+                        </span>
+                      </div>
+                      <h2>{r.name}</h2>
+                      <p>{r.description}</p>
+                      <div className="connectionfoot">
+                        <span>
+                          {r.billing === "api"
+                            ? "API credits"
+                            : "Your subscription"}
+                        </span>
+                        <span>Text tasks</span>
+                      </div>
+                    </article>
+                  ))}
               </div>
               <div className="setup">
                 <h2>Connect on your host</h2>

@@ -1,6 +1,6 @@
 # Multiple AI accounts: product and runtime requirements
 
-Status: required for the next architecture; not implemented by the current single-owner preview. Applies whether Boss Bot adopts Paperclip or continues its own backend.
+Status: the local-owner preview now supports multiple saved Codex, Claude API, GitHub and GitLab connections with explicit task selection. Team ownership, grants, refresh coordination and quota-aware routing below remain requirements. See [the implemented connection boundary](connection-design.md).
 
 ## Product model
 
