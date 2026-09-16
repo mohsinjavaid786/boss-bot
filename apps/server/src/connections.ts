@@ -19,7 +19,7 @@ import { runtimes } from "./runtimes.ts";
 
 export const connectionInput = z
   .object({
-    provider: z.enum(["github", "gitlab", "claude", "codex"]),
+    provider: z.enum(["github", "gitlab", "claude", "codex", "claude-code"]),
     label: z.string().trim().min(1).max(60),
     secret: z.string().trim().min(1).max(8000),
     model: z.string().trim().max(120).default(""),
@@ -27,10 +27,13 @@ export const connectionInput = z
   .superRefine((value, ctx) => {
     if (value.provider === "claude" && !value.model)
       ctx.addIssue({ code: "custom", message: "Choose a Claude API model." });
-    if (value.provider === "codex" && !isAbsolute(value.secret))
+    if (
+      ["codex", "claude-code"].includes(value.provider) &&
+      !isAbsolute(value.secret)
+    )
       ctx.addIssue({
         code: "custom",
-        message: "Use an absolute dedicated Codex directory.",
+        message: "Use an absolute dedicated CLI account directory.",
       });
   });
 type Input = z.infer<typeof connectionInput>;
@@ -86,8 +89,11 @@ export class Connections {
   }
   add(raw: unknown): SavedConnection {
     const value = connectionInput.parse(raw);
-    if (value.provider === "codex" && !statSync(value.secret).isDirectory())
-      throw new Error("Codex directory not found");
+    if (
+      ["codex", "claude-code"].includes(value.provider) &&
+      !statSync(value.secret).isDirectory()
+    )
+      throw new Error("CLI account directory not found");
     const id = randomUUID();
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", this.key, iv);
@@ -139,25 +145,31 @@ export class Connections {
   }
   runtimes() {
     return this.list()
-      .filter((c) => c.provider === "claude" || c.provider === "codex")
+      .filter((c) => ["claude", "codex", "claude-code"].includes(c.provider))
       .map((c) => {
         const runtime = () => {
           const account = this.get(c.id);
           const env =
-            account.provider === "codex"
-              ? { ...process.env, BOSS_CODEX_HOME: account.secret }
-              : {
+            account.provider === "claude-code"
+              ? {
                   ...process.env,
-                  ANTHROPIC_API_KEY: account.secret,
-                  ANTHROPIC_MODEL: account.model,
-                };
+                  BOSS_CLAUDE_HOME: account.secret,
+                  BOSS_CLAUDE_MODEL: account.model,
+                }
+              : account.provider === "codex"
+                ? { ...process.env, BOSS_CODEX_HOME: account.secret }
+                : {
+                    ...process.env,
+                    ANTHROPIC_API_KEY: account.secret,
+                    ANTHROPIC_MODEL: account.model,
+                  };
           return runtimes(env).find((r) => r.info.id === account.provider)!;
         };
         return {
           info: {
             ...runtime().info,
             id: `connection:${c.id}`,
-            name: `${c.label} · ${c.provider === "codex" ? "Codex subscription" : "Claude API"}`,
+            name: `${c.label} · ${c.provider === "claude-code" ? "Claude Code subscription" : c.provider === "codex" ? "Codex subscription" : "Claude API"}`,
           },
           execute: ((input, signal) =>
             runtime().execute(input, signal)) as ReturnType<

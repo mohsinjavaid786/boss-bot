@@ -1,3 +1,4 @@
+import { claudeCode } from "./claude-code.ts";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -42,6 +43,7 @@ async function request(
 }
 export function runtimes(env: NodeJS.ProcessEnv = process.env): AgentRuntime[] {
   return [
+    claudeCode(env),
     {
       info: info(
         "claude-native",
