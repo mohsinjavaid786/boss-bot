@@ -54,17 +54,25 @@ Git connections currently provide a paginated, read-only repository browser with
 
 ## Subscription support
 
-| Connection                         | Current position                                                                                                                                                                                                                          |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ChatGPT / Codex subscription       | Local CLI adapter implemented. Uses your own dedicated Codex login. No API key required.                                                                                                                                                  |
-| Claude subscription                | Not integrated into Boss Bot. Claude Code and Anthropic's own Remote Control support subscription use, but Anthropic currently prohibits third-party apps from offering Claude.ai login or routing through user subscription credentials. |
-| Multiple accounts for one provider | Implemented for this local owner: multiple labeled Codex directories, Claude API keys, GitHub and GitLab tokens. Team ownership and quota reporting are planned.                                                                          |
-| Gemini subscription                | Not implemented. Eligible Gemini CLI account use needs a separate integration review.                                                                                                                                                     |
-| API credentials                    | Optional text-only adapters. Explicit selection required; automatic fallback is disabled.                                                                                                                                                 |
+| Connection                         | Current position                                                                                                                                                      |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ChatGPT / Codex subscription       | Local CLI adapter implemented. Uses your own dedicated Codex login. No API key required.                                                                              |
+| Claude subscription                | Native task handoff implemented: approve, copy into your own Claude Code session, and import the reviewed result. No SDK subscription routing or automatic execution. |
+| Multiple accounts for one provider | Implemented for this local owner: multiple labeled Codex directories, Claude API keys, GitHub and GitLab tokens. Team ownership and quota reporting are planned.      |
+| Gemini subscription                | Not implemented. Eligible Gemini CLI account use needs a separate integration review.                                                                                 |
+| API credentials                    | Optional text-only adapters. Explicit selection required; automatic fallback is disabled.                                                                             |
 
-The full goal of using **both Claude and ChatGPT subscriptions inside one Boss Bot chat experience is not yet met**. Native Claude use is an available separate workflow, not a substitute we describe as a completed integration. Any unified Claude subscription connection needs an officially permitted path.
+The full goal of using **both Claude and ChatGPT subscriptions inside one Boss Bot chat experience is not yet met**. Native Claude handoff is a manual workflow; it is not automatic in-app execution. Any unified Claude subscription connection needs an officially permitted path.
 
 References: [Codex authentication](https://developers.openai.com/codex/auth/), [Claude credential rules](https://code.claude.com/docs/en/legal-and-compliance), [Claude Remote Control](https://code.claude.com/docs/en/remote-control), [Gemini CLI authentication](https://geminicli.com/docs/get-started/authentication/).
+
+## Use your Claude subscription through a native handoff
+
+Choose **Claude Code · native handoff** in New task, then **Approve handoff**. Boss Bot saves a snapshot of the task and agent context. Open a terminal in your chosen working folder, run the unmodified `claude` CLI, sign in through its own flow and check `/status` for the active account and billing. Copy the approved task into Claude and review permissions there. Paste the reviewed answer back into Boss Bot using **Save reviewed result**.
+
+Boss Bot never reads your Claude login or chooses native billing. An API-configured Claude session may use API credits, so verify the native session before submitting work. Imported results are labeled as supplied by you; the server has not independently verified execution. Native handoffs remain pending across server restarts.
+
+See the [DevAgent assessment](docs/devagent-assessment.md) for the subscription mechanism, useful architecture, and the distinction between native CLI use and third-party SDK routing.
 
 ## What you can do today
 

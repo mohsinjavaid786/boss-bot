@@ -26,6 +26,7 @@ import type {
   RuntimeInfo,
 } from "../../../packages/core/src/index.ts";
 import "./style.css";
+import { NativeHandoff } from "./NativeHandoff";
 import { ConnectionManager } from "./Connections";
 import type { SavedConnection } from "../../server/src/connections.ts";
 type State = {
@@ -39,6 +40,7 @@ type Page = "Overview" | "Your team" | "Tasks" | "Approvals" | "Connections";
 const labels: Record<Task["status"], string> = {
   awaiting_approval: "Needs approval",
   running: "In progress",
+  awaiting_native: "Continue in Claude",
   completed: "Completed",
   failed: "Failed",
   rejected: "Declined",
@@ -513,16 +515,22 @@ function App() {
                             (r.available ? "completed" : "disconnected")
                           }
                         >
-                          {r.available ? "Configured" : "Not configured"}
+                          {r.id === "claude-native"
+                            ? "Manual workflow"
+                            : r.available
+                              ? "Configured"
+                              : "Not configured"}
                         </span>
                       </div>
                       <h2>{r.name}</h2>
                       <p>{r.description}</p>
                       <div className="connectionfoot">
                         <span>
-                          {r.billing === "api"
-                            ? "API credits"
-                            : "Your subscription"}
+                          {r.id === "claude-native"
+                            ? "Verify billing in Claude"
+                            : r.billing === "api"
+                              ? "API credits"
+                              : "Your subscription"}
                         </span>
                         <span>Text tasks</span>
                       </div>
@@ -680,9 +688,11 @@ function App() {
                     {available.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name} —{" "}
-                        {r.billing === "api"
-                          ? "uses API credits"
-                          : "uses subscription"}
+                        {r.id === "claude-native"
+                          ? "Verify billing in Claude"
+                          : r.billing === "api"
+                            ? "uses API credits"
+                            : "uses subscription"}
                       </option>
                     ))}
                   </select>
@@ -768,16 +778,37 @@ function App() {
                   <div className="output">
                     <h4>
                       {currentTask.status === "completed"
-                        ? "Result"
+                        ? currentTask.runtimeId === "claude-native"
+                          ? "Result supplied by you"
+                          : "Result"
                         : "Execution update"}
                     </h4>
                     <pre>{currentTask.output}</pre>
                   </div>
                 )}
+                {currentTask.status === "awaiting_native" && (
+                  <NativeHandoff
+                    key={currentTask.id}
+                    id={currentTask.id}
+                    busy={busy}
+                    save={async (output) => {
+                      if (
+                        await mutate(
+                          `/api/tasks/${currentTask.id}/native-result`,
+                          "POST",
+                          { output },
+                        )
+                      )
+                        setNotice("Your reviewed Claude result is saved.");
+                    }}
+                  />
+                )}
                 {currentTask.status === "awaiting_approval" && (
                   <>
                     <p className="approvalnote">
-                      Approving starts this task using{" "}
+                      {currentTask.runtimeId === "claude-native"
+                        ? "Approving prepares a manual handoff. Run the task in Claude yourself; verify native billing before using "
+                        : "Approving starts this task using "}
                       {state.runtimes.find(
                         (r) => r.id === currentTask.runtimeId,
                       )?.billing === "api"
@@ -814,11 +845,16 @@ function App() {
                             )
                           )
                             setNotice(
-                              "Task approved. Your teammate is getting started.",
+                              currentTask.runtimeId === "claude-native"
+                                ? "Handoff ready. Continue in your Claude Code session."
+                                : "Task approved. Your teammate is getting started.",
                             );
                         }}
                       >
-                        Approve & run <Check size={16} />
+                        {currentTask.runtimeId === "claude-native"
+                          ? "Approve handoff"
+                          : "Approve & run"}{" "}
+                        <Check size={16} />
                       </button>
                     </div>
                   </>

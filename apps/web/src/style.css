@@ -1421,3 +1421,29 @@ footer small {
     flex-direction: column;
   }
 }
+
+.native-handoff {
+  margin: 24px 0;
+}
+.native-handoff ol {
+  padding-left: 22px;
+  line-height: 1.7;
+}
+.native-handoff label {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  font-weight: 600;
+}
+.native-handoff textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d6dfe5;
+  border-radius: 8px;
+  font: inherit;
+  resize: vertical;
+}
+.badge.awaiting_native {
+  background: #eef0ff;
+  color: #5056a5;
+}

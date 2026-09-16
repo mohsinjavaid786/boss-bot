@@ -361,7 +361,9 @@ export function ConnectionManager({
         <p>
           Sign in directly in the unmodified Claude Code or Claude app. Boss Bot
           does not collect Claude subscription tokens or route tasks through
-          them. Native Claude sessions run separately from Boss Bot tasks.
+          them. Choose “Claude Code · native handoff” in New task to prepare a
+          task, run it in your own Claude session, and save the reviewed result
+          back here. Execution and billing stay in the native app.
         </p>
         <a
           href="https://code.claude.com/docs/en/remote-control"
