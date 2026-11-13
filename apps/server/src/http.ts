@@ -23,6 +23,7 @@ export function app(
 ) {
   const token = randomBytes(32).toString("hex");
   const busyWorkspaces = new Set<string>();
+  const executions = new Map<string, AbortController>();
   const server = createServer(async (req, res) => {
     const send = (status: number, data: unknown) => {
       res.writeHead(status, {
@@ -162,7 +163,7 @@ export function app(
               parent.runtimeId !== data.runtimeId ||
               parent.agentId !== data.agentId ||
               parent.execution.workspace !== workspace ||
-              !["completed", "failed", "interrupted"].includes(parent.status)
+              !["completed", "failed", "interrupted", "cancelled"].includes(parent.status)
             )
               throw new Error(
                 "Continue a finished coding task using the same teammate, account and workspace.",
@@ -185,11 +186,17 @@ export function app(
           );
         }
         const action = url.pathname.match(
-          /^\/api\/tasks\/([^/]+)\/(approve|reject|events|native-prompt|native-result)$/,
+          /^\/api\/tasks\/([^/]+)\/(approve|reject|stop|events|native-prompt|native-result)$/,
         );
         if (action) {
           const task = store.tasks().find((t) => t.id === action[1]);
           if (!task) return send(404, { error: "Task not found" });
+          if (req.method === "POST" && action[2] === "stop") {
+            const controller = executions.get(task.id);
+            if (!controller || !store.requestStop(task.id)) return send(409, { error: "Only a running task can be stopped." });
+            controller.abort();
+            return send(202, { ok: true });
+          }
           if (req.method === "GET" && action[2] === "events")
             return send(200, store.events(task.id));
           if (req.method === "GET" && action[2] === "native-prompt")
@@ -235,8 +242,11 @@ export function app(
             const parent = store
               .tasks()
               .find((t) => t.id === task.execution?.resumeTaskId);
-            const signal = AbortSignal.timeout(workspace ? 1800000 : 180000);
-            void runtime
+            const controller = new AbortController();
+            executions.set(task.id, controller);
+            const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(workspace ? 1800000 : 180000)]);
+            const finishCancelled = () => store.finish(task.id, "cancelled", ((store.tasks().find(t => t.id === task.id)?.output || "") + "\nStopped by you. Review any file changes before running again.").trim());
+            void Promise.resolve().then(() => runtime
               .execute(
                 {
                   instructions: agent.instructions,
@@ -249,11 +259,11 @@ export function app(
                   onProgress: (text) => store.progress(task.id, text),
                 },
                 signal,
-              )
-              .then((output) =>
+              ))
+              .then((output) => controller.signal.aborted ? finishCancelled() :
                 store.finish(task.id, "completed", output.slice(0, 100000)),
               )
-              .catch((error) =>
+              .catch((error) => controller.signal.aborted ? finishCancelled() :
                 store.finish(
                   task.id,
                   "failed",
@@ -265,6 +275,7 @@ export function app(
                 ),
               )
               .finally(() => {
+                executions.delete(task.id);
                 if (workspace) busyWorkspaces.delete(workspace);
               });
             return send(202, { ok: true });

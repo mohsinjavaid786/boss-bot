@@ -11,11 +11,11 @@ import type { SavedConnection } from "../../server/src/connections.ts";
 
 type Repo = { id: string; name: string; url: string; private: boolean };
 const names = {
+  codex: "ChatGPT / Codex subscription",
+  "claude-code": "Claude Code subscription",
   github: "GitHub",
   gitlab: "GitLab",
-  codex: "Codex subscription",
   claude: "Claude API",
-  "claude-code": "Claude Code subscription",
 };
 export function ConnectionManager({
   connections,
@@ -27,8 +27,9 @@ export function ConnectionManager({
   refresh: () => Promise<void>;
 }) {
   const [adding, setAdding] = useState(false);
-  const [provider, setProvider] = useState<keyof typeof names>("github");
+  const [provider, setProvider] = useState<keyof typeof names>("codex");
   const [busy, setBusy] = useState(false);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [catalog, setCatalog] = useState<{
     id: string;
@@ -53,7 +54,7 @@ export function ConnectionManager({
     setError("");
     try {
       await work();
-      await refresh();
+      await refresh().catch(() => {});
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Connection request failed.",
@@ -240,7 +241,7 @@ export function ConnectionManager({
                 name="model"
                 required={provider === "claude"}
                 maxLength={120}
-                placeholder="Enter a model available to your API account"
+                placeholder={provider === "claude" ? "Enter a model available to your API account" : "Optional: use the CLI default"}
                 disabled={busy}
               />
             </label>
@@ -318,18 +319,10 @@ export function ConnectionManager({
                   </button>
                 </>
               )}
-              <button
-                disabled={busy}
-                onClick={() =>
-                  void action(async () => {
-                    await request(`/api/connections/${c.id}`, "DELETE");
-                    if (catalog?.id === c.id) setCatalog(null);
-                  })
-                }
-              >
-                Disconnect
-              </button>
+              {disconnecting !== c.id && <button disabled={busy} onClick={() => setDisconnecting(c.id)}>Disconnect</button>}
+
             </div>
+            {disconnecting === c.id && <div className="disconnect-confirm"><strong>Disconnect {c.label}?</strong><p>Pending tasks will lose access. This does not stop running work or revoke the provider login.</p><div className="account-actions"><button className="danger-button" disabled={busy} onClick={() => void action(async () => {await request("/api/connections/"+c.id, "DELETE");if(catalog?.id===c.id) setCatalog(null);setDisconnecting(null);})}>{busy ? "Disconnecting…" : "Disconnect account"}</button><button disabled={busy} onClick={() => setDisconnecting(null)}>Keep account</button></div></div>}
           </article>
         ))}
       </div>

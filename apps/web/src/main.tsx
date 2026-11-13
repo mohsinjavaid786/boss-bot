@@ -19,6 +19,12 @@ import {
   BookOpen,
   PanelLeft,
   Activity,
+  Square,
+  RotateCcw,
+  ArrowRight,
+  Terminal,
+  Copy,
+  WifiOff,
 } from "lucide-react";
 import type {
   Agent,
@@ -28,6 +34,9 @@ import type {
 import "./style.css";
 import { NativeHandoff } from "./NativeHandoff";
 import { ConnectionManager } from "./Connections";
+import { TaskComposer } from "./TaskComposer";
+import { TaskHistory } from "./TaskHistory";
+import { filterTasks } from "./task-view";
 import type { SavedConnection } from "../../server/src/connections.ts";
 type State = {
   agents: Agent[];
@@ -40,6 +49,8 @@ type Page = "Overview" | "Your team" | "Tasks" | "Approvals" | "Connections";
 const labels: Record<Task["status"], string> = {
   awaiting_approval: "Needs approval",
   running: "In progress",
+  stopping: "Stopping",
+  cancelled: "Stopped",
   awaiting_native: "Continue in Claude",
   completed: "Completed",
   failed: "Failed",
@@ -64,22 +75,25 @@ function App() {
     [task, setTask] = useState<Task | null>(null),
     [busy, setBusy] = useState(false),
     [mobile, setMobile] = useState(false);
-  const [taskRuntimeId, setTaskRuntimeId] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [offline, setOffline] = useState(false);
+  const [repeatTask, setRepeatTask] = useState<Task | null>(null);
   const [continuation, setContinuation] = useState<Task | null>(null);
   useEffect(() => {
-    if (!dialog) setContinuation(null);
+    if (!dialog) { setContinuation(null); setRepeatTask(null); }
   }, [dialog]);
   async function refresh() {
-    const r = await fetch("/api/state");
+    const r = await fetch("/api/state", { signal: AbortSignal.timeout(8000) });
     if (!r.ok)
       throw new Error(
         "Workspace could not load. Check that the server is running.",
       );
     setState(await r.json());
+    setOffline(false);
   }
   useEffect(() => {
-    refresh().catch((e) => setError(e.message));
-    const timer = setInterval(() => refresh().catch(() => {}), 3000);
+    refresh().catch(() => setOffline(true));
+    const timer = setInterval(() => refresh().catch(() => setOffline(true)), 3000);
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
@@ -94,6 +108,7 @@ function App() {
     window.addEventListener("keydown", escape);
     return () => window.removeEventListener("keydown", escape);
   }, []);
+  useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(""), 6500); return () => clearTimeout(timer); }, [notice]);
   async function mutate(path: string, method: string, data: unknown) {
     setBusy(true);
     setError("");
@@ -109,7 +124,7 @@ function App() {
       const value = await r.json();
       if (!r.ok)
         throw new Error(value.error || "This action could not be completed.");
-      await refresh();
+      await refresh().catch(() => setOffline(true));
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Request failed");
@@ -125,12 +140,12 @@ function App() {
           <Command />
         </div>
         <h1>Boss Bot</h1>
-        <p>{error || "Opening your workspace…"}</p>
-        {error && <button onClick={() => location.reload()}>Try again</button>}
+        <p>{offline ? "Couldn’t connect to Boss Bot. Check that the server is running." : "Opening your workspace…"}</p>
+        {offline && <button onClick={() => location.reload()}>Try again</button>}
       </div>
     );
   const pending = state.tasks.filter((t) => t.status === "awaiting_approval"),
-    running = state.tasks.filter((t) => t.status === "running"),
+    running = state.tasks.filter((t) => ["running", "stopping"].includes(t.status)),
     completed = state.tasks.filter((t) => t.status === "completed");
   const available = state.runtimes.filter(
     (r) => r.available && r.id !== "claude-native",
@@ -138,15 +153,14 @@ function App() {
   const currentTask = task
     ? state.tasks.find((t) => t.id === task.id) || task
     : null;
-  const filteredTasks = state.tasks.filter((t) =>
-    t.prompt.toLowerCase().includes(query.toLowerCase()),
-  );
+  const filteredTasks = filterTasks(state.tasks, state.agents, state.runtimes, query, statusFilter);
   function go(p: Page) {
     setPage(p);
     setMobile(false);
     setQuery("");
+    setStatusFilter("all");
   }
-  function taskRows(list: Task[]) {
+  function taskRows(list: Task[], emptyKind = "default") {
     return list.length ? (
       <div className="tasklist">
         {list.map((t) => (
@@ -164,9 +178,11 @@ function App() {
               <small>
                 {state!.agents.find((a) => a.id === t.agentId)?.name}{" "}
                 <span className="dotsep">•</span>{" "}
-                {state!.runtimes.find((r) => r.id === t.runtimeId)?.name}
+                {state!.runtimes.find((r) => r.id === t.runtimeId)?.name || "Disconnected account"}
+                {t.execution?.workspace && <span className="taskkind"><Terminal size={12}/> Coding</span>}
               </small>
             </span>
+            <time className="taskdate" dateTime={t.createdAt}>{new Date(t.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
             <span className={"badge " + t.status}>{labels[t.status]}</span>
             <ChevronRight size={16} />
           </button>
@@ -175,11 +191,11 @@ function App() {
     ) : (
       <div className="empty">
         <Workflow size={27} />
-        <h3>No tasks here yet</h3>
-        <p>Give an agent a clear goal. You’ll review it before work begins.</p>
-        <button className="textbutton" onClick={() => setDialog("task")}>
-          Create your first task <ArrowUpRight size={16} />
-        </button>
+        <h3>{emptyKind === "approvals" ? "You’re all caught up" : query || statusFilter !== "all" ? "No matching tasks" : "Your next task starts here"}</h3>
+        <p>{emptyKind === "approvals" ? "New tasks appear here for review before they run." : query || statusFilter !== "all" ? "Try another search or clear your filters." : "Choose a teammate, describe the outcome, and review before running."}</p>
+        {emptyKind !== "approvals" && <button className="textbutton" onClick={() => { if(query || statusFilter !== "all") { setQuery(""); setStatusFilter("all"); } else if(!available.length) go("Connections"); else setDialog("task"); }}>
+          {query || statusFilter !== "all" ? "Clear filters" : !available.length ? "Connect an account" : "Create a task"} <ArrowRight size={16}/>
+        </button>}
       </div>
     );
   }
@@ -252,7 +268,6 @@ function App() {
             <strong>My workspace</strong>
             <small>Local workspace</small>
           </div>
-          <ChevronRight size={15} />
         </div>
         <div className="navlabel">Workspace</div>
         <nav>
@@ -262,6 +277,7 @@ function App() {
               <button
                 key={p}
                 className={page === p ? "active" : ""}
+                aria-current={page === p ? "page" : undefined}
                 onClick={() => go(p)}
               >
                 <Icon size={19} />
@@ -296,6 +312,7 @@ function App() {
           <button
             className="iconbutton mobiletoggle"
             aria-label="Toggle navigation"
+            aria-expanded={mobile}
             onClick={() => setMobile(!mobile)}
           >
             <PanelLeft size={20} />
@@ -304,26 +321,21 @@ function App() {
             Workspace <ChevronRight size={14} /> <strong>{page}</strong>
           </div>
           <div className="topright">
-            <span className="local">
-              <i /> Local instance
+            <span className={"local " + (offline ? "offline" : "")} role="status">
+              <i /> {offline ? "Connection lost" : "Connected locally"}
             </span>
-            <span className="profilepic mini">Y</span>
+            <span className="local-version">Local preview</span>
           </div>
         </header>
         <main>
           <div className="pageheading">
             <div>
-              <p className="greeting">
-                {page === "Overview"
-                  ? "A little direction. A lot of possibility."
-                  : "Your AI workspace"}
-              </p>
-              <h1>{page === "Overview" ? "Good work starts here." : page}</h1>
+              <h1>{page === "Overview" ? "Your workspace" : page}</h1>
               <p>
                 {
                   {
                     Overview:
-                      "Give your team a goal. Keep the important decisions yours.",
+                      "A clear view of your team, accounts, and work in progress.",
                     "Your team":
                       "Persistent teammates with their own purpose and memory.",
                     Tasks:
@@ -343,6 +355,7 @@ function App() {
               {page === "Your team" ? "Add teammate" : "New task"}
             </button>
           </div>
+          {offline && <div className="offline-banner" role="alert"><WifiOff size={18}/><div><strong>Connection interrupted</strong><p>Showing the last saved state. Changes will refresh when the server reconnects.</p></div><button onClick={() => refresh().catch(() => setOffline(true))}>Reconnect</button></div>}
           {error && (
             <div role="alert" className="alert">
               {error}
@@ -365,37 +378,12 @@ function App() {
           {page === "Overview" && (
             <>
               <section className="overviewgrid">
-                <div className="direction">
-                  <div className="directioncontent">
-                    <span className="directionicon">
-                      <Sparkles size={23} />
-                    </span>
-                    <h2>
-                      Meet your next
-                      <br />
-                      great team.
-                    </h2>
-                    <p>
-                      Researchers, writers, and organizers.
-                      <br />A shared purpose. Your direction.
-                    </p>
-                    <button onClick={() => go("Your team")}>
-                      Explore your team <ArrowUpRight size={17} />
-                    </button>
-                  </div>
-                  <div className="teamart" aria-hidden="true">
-                    <div className="orbit o1" />
-                    <div className="orbit o2" />
-                    <div className="artavatar av1">A</div>
-                    <div className="artavatar av2">N</div>
-                    <div className="artavatar av3">M</div>
-                    <div className="artcenter">
-                      <Command size={32} />
-                    </div>
-                    <div className="artchip">
-                      <span /> Together, on purpose
-                    </div>
-                  </div>
+                <div className="workbench">
+                  <div className="workbench-heading"><span className="workbench-icon"><Command size={23}/></span><span>Work, with oversight</span></div>
+                  <h2>{pending.length ? pending.length + (pending.length === 1 ? " task needs your review" : " tasks need your review") : running.length ? "Your team is on it" : "Ready for the next assignment"}</h2>
+                  <p>{pending.length ? "Check the instruction, account, and access before your teammate gets started." : running.length ? "Follow progress, review the activity, or stop a task when priorities change." : "Give a teammate a clear outcome. Your accounts and approval stay in your hands."}</p>
+                  <button className="primary" onClick={() => pending.length ? setTask(pending[0]) : running.length ? setTask(running[0]) : !available.length ? go("Connections") : setDialog("task")}>{pending.length ? "Review next task" : running.length ? "View active work" : !available.length ? "Connect an account" : "Create a task"} <ArrowRight size={17}/></button>
+                  <div className="workbench-meta"><span>{state.agents.length} teammates</span><span>{available.length} configured accounts</span><span>Approval required</span></div>
                 </div>
                 <div className="pulse">
                   <div className="sectionheading">
@@ -425,20 +413,14 @@ function App() {
                   </div>
                 </div>
               </section>
-              {!available.length && (
-                <div className="connectbanner">
-                  <div className="connecticon">
-                    <Zap size={20} />
-                  </div>
-                  <div>
-                    <strong>Connect the intelligence behind your team</strong>
-                    <p>Add a supported runtime to start assigning real work.</p>
-                  </div>
-                  <button onClick={() => go("Connections")}>
-                    Set up a connection <ChevronRight size={16} />
-                  </button>
+              {!completed.length && <section className="getting-started">
+                <div><h2>Make it your workspace</h2><p>Three steps to your first result.</p></div>
+                <div className="setup-steps">
+                  <button onClick={() => go("Connections")}><span className={available.length ? "step done" : "step"}>{available.length ? <Check size={16}/> : "1"}</span><span><strong>{available.length ? "Account configured" : "Connect an account"}</strong><small>Use your subscription or API account</small></span><ChevronRight size={16}/></button>
+                  <button onClick={() => available.length ? setDialog("task") : go("Connections")}><span className={state.tasks.length ? "step done" : "step"}>{state.tasks.length ? <Check size={16}/> : "2"}</span><span><strong>Assign a clear outcome</strong><small>Choose a teammate and task access</small></span><ChevronRight size={16}/></button>
+                  <button onClick={() => pending.length ? setTask(pending[0]) : go("Tasks")}><span className="step">3</span><span><strong>Review and run</strong><small>Approve, follow progress, review results</small></span><ChevronRight size={16}/></button>
                 </div>
-              )}
+              </section>}
               <section>
                 <div className="sectionheading">
                   <div>
@@ -446,7 +428,7 @@ function App() {
                       Your team{" "}
                       <span className="count">{state.agents.length}</span>
                     </h2>
-                    <p>A familiar face for every kind of work.</p>
+                    <p>Choose a specialty. Add the context that matters.</p>
                   </div>
                   <button
                     className="textbutton"
@@ -476,13 +458,13 @@ function App() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={
-                  page === "Tasks" ? "Find a task…" : "Find a teammate…"
+                  page === "Tasks" ? "Search tasks, teammates, accounts or paths…" : "Find a teammate…"
                 }
               />
             </div>
           )}
           {page === "Your team" && agentCards()}
-          {page === "Tasks" && taskRows(filteredTasks)}
+          {page === "Tasks" && <><div className="task-toolbar"><div className="status-tabs" aria-label="Filter tasks by status">{[["all","All tasks"],["awaiting_approval","Needs review"],["running","Running"],["completed","Completed"],["failed","Failed"]].map(([value,label]) => <button key={value} aria-pressed={statusFilter === value} onClick={() => setStatusFilter(value)}>{label}</button>)}</div><label className="status-select">Status<select aria-label="Task status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="all">All statuses</option>{Object.entries(labels).map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label><span className="muted">{filteredTasks.length} {filteredTasks.length === 1 ? "task" : "tasks"}</span></div>{taskRows(filteredTasks)}</>}
           {page === "Approvals" && (
             <>
               <div className="reviewintro">
@@ -496,7 +478,7 @@ function App() {
                   </p>
                 </div>
               </div>
-              {taskRows(pending)}
+              {taskRows(pending, "approvals")}
             </>
           )}
           {page === "Connections" && (
@@ -506,7 +488,7 @@ function App() {
                 token={state.token}
                 refresh={refresh}
               />
-              <h2>Host environment runtimes</h2>
+              <details className="host-runtimes"><summary>Host configuration <span>Advanced</span></summary><h2>Environment accounts</h2>
               <div className="connectiongrid">
                 {state.runtimes
                   .filter(
@@ -543,7 +525,7 @@ function App() {
                               ? "API credits"
                               : "Your subscription"}
                         </span>
-                        <span>Text tasks</span>
+                        <span>{r.capabilities.includes("coding") ? "Text and coding" : "Text tasks"}</span>
                       </div>
                     </article>
                   ))}
@@ -572,11 +554,11 @@ function App() {
                   verifies provider access. Automatic fallback and allowance
                   reporting are planned.
                 </p>
-              </div>
+              </div></details>
             </>
           )}
           <footer>
-            Boss Bot <span>Your team. Your direction.</span>
+            Boss Bot <span>Local workspace. Your accounts. Your approval.</span>
             <small>Foundation preview</small>
           </footer>
         </main>
@@ -597,7 +579,7 @@ function App() {
               dialog === "agent"
                 ? "Add a teammate"
                 : dialog === "task"
-                  ? "Give your team a goal"
+                  ? continuation ? "Continue task" : repeatTask ? "Run task again" : "Create a task"
                   : selected
                     ? selected.name
                     : "Task details"
@@ -655,127 +637,7 @@ function App() {
                 </button>
               </form>
             )}
-            {dialog === "task" && (
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const d = new FormData(e.currentTarget);
-                  if (
-                    await mutate("/api/tasks", "POST", Object.fromEntries(d))
-                  ) {
-                    setDialog(null);
-                    setContinuation(null);
-                    go("Approvals");
-                    setNotice("Task saved. Review it to start work.");
-                  }
-                }}
-              >
-                <label>
-                  Teammate
-                  <select name="agentId" defaultValue={continuation?.agentId}>
-                    {state.agents.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} — {a.role}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  What should they do?
-                  <textarea
-                    autoFocus
-                    name="prompt"
-                    required
-                    maxLength={8000}
-                    rows={5}
-                    placeholder="Give a clear goal, useful context, and the result you need."
-                  />
-                </label>
-                <label>
-                  Runtime
-                  <select
-                    name="runtimeId"
-                    required
-                    value={continuation?.runtimeId || taskRuntimeId}
-                    onChange={(e) => {
-                      setTaskRuntimeId(e.target.value);
-                      setContinuation(null);
-                    }}
-                  >
-                    <option value="" disabled>
-                      Select a configured runtime
-                    </option>
-                    {available.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} —{" "}
-                        {r.id === "claude-native"
-                          ? "Verify billing in Claude"
-                          : r.billing === "api"
-                            ? "uses API credits"
-                            : "uses subscription"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {state.runtimes
-                  .find(
-                    (r) => r.id === (continuation?.runtimeId || taskRuntimeId),
-                  )
-                  ?.capabilities.includes("coding") && (
-                  <>
-                    <label>
-                      Local coding workspace (optional)
-                      <input
-                        name="workspace"
-                        defaultValue={continuation?.execution?.workspace || ""}
-                        placeholder="/absolute/path/to/repository"
-                        maxLength={4096}
-                      />
-                    </label>
-                    <label>
-                      Model (optional, coding tasks only)
-                      <input
-                        name="model"
-                        defaultValue={continuation?.execution?.model || ""}
-                        placeholder="Use the account default"
-                        maxLength={120}
-                      />
-                    </label>
-                    <input
-                      type="hidden"
-                      name="resumeTaskId"
-                      value={continuation?.id || ""}
-                    />
-                    <p className="formhint">
-                      A workspace enables file edits and shell commands for up
-                      to 30 minutes. Use a trusted local checkout. Leave it
-                      blank for a text task.
-                    </p>
-                    {continuation && (
-                      <p className="formhint">
-                        Continuing task {continuation.id} with its saved native
-                        session.
-                      </p>
-                    )}
-                  </>
-                )}
-                {!available.length && (
-                  <p className="formhint">
-                    Set up a runtime in Connections before creating a task.
-                  </p>
-                )}
-                <p className="formhint">
-                  <ShieldCheck size={15} /> You’ll review this task before
-                  execution.
-                </p>
-                <button
-                  className="primary"
-                  disabled={busy || !available.length}
-                >
-                  Send for approval <Send size={16} />
-                </button>
-              </form>
-            )}
+            {dialog === "task" && <TaskComposer agents={state.agents} runtimes={available} initial={continuation || repeatTask} resume={!!continuation} busy={busy} onConnections={() => {setDialog(null);go("Connections");}} onCreate={async data => {if(await mutate("/api/tasks","POST",data)) {setDialog(null);go("Approvals");setNotice("Task saved. Review it before work begins.");}}}/>}
             {selected && (
               <form
                 onSubmit={async (e) => {
@@ -855,6 +717,12 @@ function App() {
                     <pre>{currentTask.output}</pre>
                   </div>
                 )}
+                <div className="task-controls">
+                  {currentTask.status === "running" && <button className="danger-button" disabled={busy} onClick={async () => {if(await mutate("/api/tasks/"+currentTask.id+"/stop","POST",{})) setNotice("Stop requested. Any existing file changes are kept.");}}><Square size={15}/>Stop task</button>}
+                  {["completed","failed","interrupted","cancelled","rejected"].includes(currentTask.status) && currentTask.runtimeId !== "claude-native" && <button className="secondary" onClick={() => {setRepeatTask(currentTask);setContinuation(null);setTask(null);setDialog("task");}}><RotateCcw size={15}/>Run again</button>}
+                  {currentTask.output && <button className="textbutton" onClick={async () => {try {await navigator.clipboard.writeText(currentTask.output);setNotice("Output copied.");} catch {setError("Could not copy. Select the output and copy it manually.");}}}><Copy size={15}/>Copy output</button>}
+                </div>
+                <TaskHistory id={currentTask.id} updatedAt={currentTask.updatedAt}/>
                 {currentTask.status === "awaiting_native" && (
                   <NativeHandoff
                     key={currentTask.id}
@@ -928,20 +796,19 @@ function App() {
                     </div>
                   </>
                 )}
-                {currentTask.status === "running" && (
+                {["running", "stopping"].includes(currentTask.status) && (
                   <p className="formhint">
-                    Work is in progress. This view updates automatically.
+                    {currentTask.status === "stopping" ? "Stopping execution. Workspace access stays reserved until the process exits." : "Work is in progress. This view updates automatically."}
                   </p>
                 )}
                 {currentTask.execution?.sessionId &&
-                  ["completed", "failed", "interrupted"].includes(
+                  ["completed", "failed", "interrupted", "cancelled"].includes(
                     currentTask.status,
                   ) && (
                     <button
                       className="secondary"
                       onClick={() => {
                         setContinuation(currentTask);
-                        setTaskRuntimeId(currentTask.runtimeId);
                         setTask(null);
                         setDialog("task");
                       }}
