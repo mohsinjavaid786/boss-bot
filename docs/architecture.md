@@ -9,7 +9,7 @@ updates, and allow an approved continuation using the same account and workspace
 They run for up to 30 minutes with one active coding task per canonical workspace
 in a server process. Text tasks retain their existing defaults. No tenant
 isolation, automatic limit retries, Git provider write tools or full chat client
-are added. See [the source comparison](devagent-adapter-review.md).
+are added. See [the subscription adapter guide](subscription-adapters.md).
 
 The requested architecture is approved in the project brief. Implement a modular local-first foundation before distributed autonomy.
 
