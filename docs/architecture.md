@@ -1,5 +1,16 @@
 # Boss Bot: first milestone
 
+## Coding adapter extension — November 13, 2026
+
+The original text-only milestone below is extended by explicit local coding
+workspaces on the Claude Code and Codex subscription runtimes. Coding tasks
+persist model/workspace settings and native session IDs, stream bounded assistant
+updates, and allow an approved continuation using the same account and workspace.
+They run for up to 30 minutes with one active coding task per canonical workspace
+in a server process. Text tasks retain their existing defaults. No tenant
+isolation, automatic limit retries, Git provider write tools or full chat client
+are added. See [the source comparison](devagent-adapter-review.md).
+
 The requested architecture is approved in the project brief. Implement a modular local-first foundation before distributed autonomy.
 
 ## Structure

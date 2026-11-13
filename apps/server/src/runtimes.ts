@@ -1,4 +1,5 @@
 import { claudeCode } from "./claude-code.ts";
+import { runCoding } from "./coding.ts";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -57,14 +58,18 @@ export function runtimes(env: NodeJS.ProcessEnv = process.env): AgentRuntime[] {
       },
     },
     {
-      info: info(
-        "codex",
-        "Codex",
-        !!env.BOSS_CODEX_HOME,
-        "subscription",
-        "Uses a dedicated local Codex login. Read-only sandbox; local files may be readable.",
-      ),
+      info: {
+        ...info(
+          "codex",
+          "Codex",
+          !!env.BOSS_CODEX_HOME,
+          "subscription",
+          "Uses a dedicated local Codex login. Optional local workspace enables coding.",
+        ),
+        capabilities: ["text", "coding"],
+      },
       async execute(input, signal) {
+        if (input.workspace) return runCoding("codex", env, input, signal);
         const dir = await mkdtemp(join(tmpdir(), "boss-codex-"));
         const output = join(dir, "answer.txt");
         try {

@@ -1,4 +1,21 @@
-export type Capability = "text" | "browser" | "computer" | "delegate";
+export type Capability =
+  "text" | "coding" | "browser" | "computer" | "delegate";
+export interface ExecutionOptions {
+  workspace?: string;
+  model?: string;
+  resumeTaskId?: string;
+  sessionId?: string;
+}
+export interface RuntimeInput {
+  instructions: string;
+  memory: string;
+  prompt: string;
+  workspace?: string;
+  model?: string;
+  resumeSessionId?: string;
+  onSession?: (id: string) => void;
+  onProgress?: (text: string) => void;
+}
 export interface RuntimeInfo {
   id: string;
   name: string;
@@ -17,6 +34,7 @@ export interface Agent {
   color: string;
 }
 export interface Task {
+  execution?: ExecutionOptions;
   id: string;
   agentId: string;
   prompt: string;
@@ -35,10 +53,7 @@ export interface Task {
 }
 export interface AgentRuntime {
   info: RuntimeInfo;
-  execute(
-    input: { instructions: string; memory: string; prompt: string },
-    signal: AbortSignal,
-  ): Promise<string>;
+  execute(input: RuntimeInput, signal: AbortSignal): Promise<string>;
 }
 export function route(
   runtimes: RuntimeInfo[],

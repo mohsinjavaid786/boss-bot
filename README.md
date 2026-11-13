@@ -63,7 +63,7 @@ Git connections currently provide a paginated, read-only repository browser with
 | Gemini subscription                | Not implemented. Eligible Gemini CLI account use needs a separate integration review.                                                                            |
 | API credentials                    | Optional text-only adapters. Explicit selection required; automatic fallback is disabled.                                                                        |
 
-The full goal of using **both Claude and ChatGPT subscriptions inside one Boss Bot chat experience is not yet met**. Both local CLI adapters now execute approved text tasks. Shared chat, persistent native sessions and full team isolation remain unfinished.
+Both local CLI adapters execute approved text tasks and opt-in coding tasks in an existing local workspace. Coding tasks save native session IDs and support an explicit continuation. Shared chat and full team isolation remain unfinished.
 
 References: [Codex authentication](https://developers.openai.com/codex/auth/), [Claude credential rules](https://code.claude.com/docs/en/legal-and-compliance), [Claude Remote Control](https://code.claude.com/docs/en/remote-control), [Gemini CLI authentication](https://geminicli.com/docs/get-started/authentication/).
 
@@ -82,7 +82,36 @@ Alternatively set `BOSS_CLAUDE_HOME`, `BOSS_CLAUDE_BIN` (an absolute binary path
 
 This is an experimental local-owner integration. Before each task, the adapter requires the CLI to report a logged-in `claude.ai` account and a recognized subscription type. API/cloud credentials are not forwarded; invalid or unknown authentication fails instead of falling back. Credentials stay managed by Claude Code. Multiple saved directories are supported; their actual identity and allowance are determined by the CLI and may share an account, depending on platform credential storage. Subscription extra usage and spending controls remain governed by your account settings.
 
-The first version handles text tasks with tools and customizations disabled. It starts a fresh session per task. This does not yet provide repository editing, persistent Claude conversations, or pooled team subscriptions. Provider terms still apply; this implementation is not a claim of provider endorsement or general SDK subscription authorization. Live execution must be verified after you sign in. Existing manual-handoff tasks remain readable and completable.
+Text tasks keep tools and customizations disabled and start fresh sessions. Coding tasks explicitly enable local file and shell tools as described below. Provider terms still apply; this implementation is not a claim of provider endorsement. Live execution must be verified after you sign in. Existing manual-handoff tasks remain readable and completable.
+
+## Coding with subscription accounts
+
+In **New task**, select a Claude Code or Codex subscription runtime and enter an
+absolute **Local coding workspace** pointing to an existing trusted checkout.
+Optionally choose a model available to that account. Review the workspace path
+and approve. Leaving the path blank keeps the existing text-only behavior.
+
+Coding enables file edits and shell commands, saves assistant progress and runs
+for up to 30 minutes. Codex uses `workspace-write` with escalation refused;
+Claude uses `acceptEdits` with its command sandbox enabled and fails if that
+sandbox is unavailable. CLI customizations and external MCP servers remain
+disabled. These controls do not provide team isolation. Keep the app local.
+
+After a coding task finishes or fails with a saved native session, click
+**Continue task**, enter the next instruction and approve again. Continuation
+requires the same teammate, account and workspace. Usage limits fail visibly;
+continue after reset rather than switching accounts or API billing automatically.
+Interrupted work is never automatically replayed after restart. One coding task
+per workspace can run in this server process.
+
+Both adapters retain their native sessions in their dedicated CLI directories.
+Back up those directories with the workspace database. API keys and OAuth-token
+environment variables are not forwarded to subscription coding processes.
+The Codex coding path checks for a ChatGPT login before execution. A directory
+or a configured badge alone does not prove a valid login or available allowance.
+
+See the [DevAgent and Orca adapter review](docs/devagent-adapter-review.md) for
+the source comparison, remaining gaps and live acceptance steps.
 
 ## What you can do today
 
@@ -95,7 +124,7 @@ The first version handles text tasks with tools and customizations disabled. It 
 - Save multiple labeled Codex and Claude API accounts and choose one per task.
 - Verify GitHub/GitLab accounts and browse accessible repository links.
 
-The Codex adapter starts a fresh native session for each task and supplies the agent's instructions and memory. It does not yet resume native conversations. Execution has a three-minute deadline. The API adapters are text-only and do not provide a tool loop.
+Text tasks start fresh native sessions, include the agent's instructions and memory, and have a three-minute deadline. Coding tasks preserve native sessions and have a 30-minute deadline. The API adapters are text-only and do not provide a tool loop.
 
 ## Chat and desktop
 
@@ -131,7 +160,7 @@ Saved connections use AES-256-GCM encryption in `data/connections.db`, with an o
 
 The preview binds to loopback and has **one trusted local owner**. It does not have team login or tenant isolation. Keep it local until those features are implemented. Stored memory and results are not encrypted at rest.
 
-Codex runs with a read-only sandbox and refuses escalation, but local readable files may still be accessible. Use a trusted host and a dedicated login directory. Approval covers the task, not each internal CLI action. Isolated computers and exact action approvals are future work.
+Text-only Codex runs read-only; coding uses workspace-write and refuses escalation. Local readable files may still be accessible. Use a trusted host and a dedicated login directory. Approval covers the task, not each internal CLI action. Isolated computers and exact action approvals are future work.
 
 The installed Codex CLI must support `exec --ignore-user-config --ignore-rules --ephemeral --sandbox read-only`; verify with `codex exec --help`. Node 22 may print an experimental SQLite warning.
 
