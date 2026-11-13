@@ -89,6 +89,7 @@ export function TaskComposer({
           Teammate
           <select
             name="agentId"
+            aria-label="Teammate"
             value={agentId}
             onChange={(e) => setAgent(e.target.value)}
             disabled={busy || resume}
@@ -104,6 +105,7 @@ export function TaskComposer({
           Account
           <select
             name="runtimeId"
+            aria-label="Account"
             value={runtimeId}
             required
             onChange={(e) => setRuntime(e.target.value)}

@@ -504,7 +504,7 @@ function App() {
                   </button>
                   <div className="workbench-meta">
                     <span>{state.agents.length} teammates</span>
-                    <span>{available.length} configured accounts</span>
+                    <span>{available.length} configured {available.length === 1 ? "account" : "accounts"}</span>
                     <span>Approval required</span>
                   </div>
                 </div>

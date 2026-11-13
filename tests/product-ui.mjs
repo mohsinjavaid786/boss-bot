@@ -56,7 +56,10 @@ try {
     path: screenshotDir + "/overview-desktop.png",
     fullPage: true,
   });
-  console.log("PRODUCT_DESKTOP:" + (await page.screenshot({ type: "jpeg", quality: 65 })).toString("base64"));
+  console.log(
+    "PRODUCT_DESKTOP:" +
+      (await page.screenshot({ type: "jpeg", quality: 65 })).toString("base64"),
+  );
   await page.getByRole("button", { name: "New task", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog
@@ -129,7 +132,10 @@ try {
     path: screenshotDir + "/overview-mobile.png",
     fullPage: true,
   });
-  console.log("PRODUCT_MOBILE:" + (await page.screenshot({ type: "jpeg", quality: 65 })).toString("base64"));
+  console.log(
+    "PRODUCT_MOBILE:" +
+      (await page.screenshot({ type: "jpeg", quality: 65 })).toString("base64"),
+  );
   assert.ok(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,

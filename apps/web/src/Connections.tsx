@@ -116,6 +116,7 @@ export function ConnectionManager({
             Provider
             <select
               name="provider"
+              aria-label="Provider"
               value={provider}
               onChange={(e) =>
                 setProvider(e.target.value as keyof typeof names)
