@@ -43,6 +43,8 @@ export interface Task {
     | "awaiting_approval"
     | "awaiting_native"
     | "running"
+    | "stopping"
+    | "cancelled"
     | "completed"
     | "failed"
     | "rejected"

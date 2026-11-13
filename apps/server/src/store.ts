@@ -36,7 +36,9 @@ export class Store {
         "teal",
       );
     }
-    for (const task of this.tasks().filter((t) => t.status === "running"))
+    for (const task of this.tasks().filter((t) =>
+      ["running", "stopping"].includes(t.status),
+    ))
       this.finish(
         task.id,
         "interrupted",
@@ -149,17 +151,29 @@ export class Store {
   }
   finish(
     id: string,
-    status: "completed" | "failed" | "interrupted",
+    status: "completed" | "failed" | "interrupted" | "cancelled",
     output: string,
   ) {
     this.transaction(() => {
       const result = this.db
         .prepare(
-          "UPDATE tasks SET status=?,output=?,updatedAt=? WHERE id=? AND status='running'",
+          "UPDATE tasks SET status=?,output=?,updatedAt=? WHERE id=? AND (status='running' OR (status='stopping' AND ? IN ('cancelled','interrupted')))",
         )
-        .run(status, output, new Date().toISOString(), id);
+        .run(status, output, new Date().toISOString(), id, status);
       if (result.changes) this.event(id, status);
     });
+  }
+  requestStop(id: string) {
+    let changed = false;
+    this.transaction(() => {
+      changed = !!this.db
+        .prepare(
+          "UPDATE tasks SET status='stopping',updatedAt=? WHERE id=? AND status='running'",
+        )
+        .run(new Date().toISOString(), id).changes;
+      if (changed) this.event(id, "stop_requested");
+    });
+    return changed;
   }
   handoff(id: string) {
     let changed = false;

@@ -189,6 +189,18 @@ Each continuation is a new task that needs approval.
 For setup details, limitations and live acceptance steps, see the
 [subscription adapter guide](docs/subscription-adapters.md).
 
+## Everyday workspace
+
+- **Overview** brings pending reviews and active tasks to the front, with a setup checklist for your first result.
+- **Tasks** supports status filters and search across instructions, teammates, accounts and workspace paths.
+- **Task details** shows output and activity history. Copy the output or stop a running task.
+- **Run again** starts a fresh task from the previous settings and requires approval. **Continue task** reuses a saved coding session with the same account and workspace.
+- **Stop task** requests cancellation and retains any file changes. The workspace stays reserved until execution exits; stopping does not undo edits.
+- Connection loss is visible, with the last saved state retained while the app reconnects.
+- Disconnecting an account asks for confirmation. Advanced host configuration stays separate from daily account setup.
+
+The browser interface is designed for desktop and narrow screens. This remains a local-owner preview; interface improvements do not add team authentication or tenant isolation.
+
 ## What you can do today
 
 - Create named teammates with their own role and instructions.
