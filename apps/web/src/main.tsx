@@ -64,6 +64,11 @@ function App() {
     [task, setTask] = useState<Task | null>(null),
     [busy, setBusy] = useState(false),
     [mobile, setMobile] = useState(false);
+  const [taskRuntimeId, setTaskRuntimeId] = useState("");
+  const [continuation, setContinuation] = useState<Task | null>(null);
+  useEffect(() => {
+    if (!dialog) setContinuation(null);
+  }, [dialog]);
   async function refresh() {
     const r = await fetch("/api/state");
     if (!r.ok)
@@ -659,6 +664,7 @@ function App() {
                     await mutate("/api/tasks", "POST", Object.fromEntries(d))
                   ) {
                     setDialog(null);
+                    setContinuation(null);
                     go("Approvals");
                     setNotice("Task saved. Review it to start work.");
                   }
@@ -666,7 +672,7 @@ function App() {
               >
                 <label>
                   Teammate
-                  <select name="agentId">
+                  <select name="agentId" defaultValue={continuation?.agentId}>
                     {state.agents.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.name} — {a.role}
@@ -687,7 +693,15 @@ function App() {
                 </label>
                 <label>
                   Runtime
-                  <select name="runtimeId" required defaultValue="">
+                  <select
+                    name="runtimeId"
+                    required
+                    value={continuation?.runtimeId || taskRuntimeId}
+                    onChange={(e) => {
+                      setTaskRuntimeId(e.target.value);
+                      setContinuation(null);
+                    }}
+                  >
                     <option value="" disabled>
                       Select a configured runtime
                     </option>
@@ -703,6 +717,48 @@ function App() {
                     ))}
                   </select>
                 </label>
+                {state.runtimes
+                  .find(
+                    (r) => r.id === (continuation?.runtimeId || taskRuntimeId),
+                  )
+                  ?.capabilities.includes("coding") && (
+                  <>
+                    <label>
+                      Local coding workspace (optional)
+                      <input
+                        name="workspace"
+                        defaultValue={continuation?.execution?.workspace || ""}
+                        placeholder="/absolute/path/to/repository"
+                        maxLength={4096}
+                      />
+                    </label>
+                    <label>
+                      Model (optional, coding tasks only)
+                      <input
+                        name="model"
+                        defaultValue={continuation?.execution?.model || ""}
+                        placeholder="Use the account default"
+                        maxLength={120}
+                      />
+                    </label>
+                    <input
+                      type="hidden"
+                      name="resumeTaskId"
+                      value={continuation?.id || ""}
+                    />
+                    <p className="formhint">
+                      A workspace enables file edits and shell commands for up
+                      to 30 minutes. Use a trusted local checkout. Leave it
+                      blank for a text task.
+                    </p>
+                    {continuation && (
+                      <p className="formhint">
+                        Continuing task {continuation.id} with its saved native
+                        session.
+                      </p>
+                    )}
+                  </>
+                )}
                 {!available.length && (
                   <p className="formhint">
                     Set up a runtime in Connections before creating a task.
@@ -776,6 +832,13 @@ function App() {
                   </span>
                 </h3>
                 <p className="taskprompt">{currentTask.prompt}</p>
+                {currentTask.execution?.workspace && (
+                  <p className="approvalnote">
+                    Coding workspace: {currentTask.execution.workspace}.
+                    Approval permits file edits and commands in the local CLI.
+                    Review the resulting diff and test output.
+                  </p>
+                )}
                 <p className="formhint">
                   <Clock3 size={14} />{" "}
                   {new Date(currentTask.createdAt).toLocaleString()}
@@ -870,6 +933,22 @@ function App() {
                     Work is in progress. This view updates automatically.
                   </p>
                 )}
+                {currentTask.execution?.sessionId &&
+                  ["completed", "failed", "interrupted"].includes(
+                    currentTask.status,
+                  ) && (
+                    <button
+                      className="secondary"
+                      onClick={() => {
+                        setContinuation(currentTask);
+                        setTaskRuntimeId(currentTask.runtimeId);
+                        setTask(null);
+                        setDialog("task");
+                      }}
+                    >
+                      Continue task
+                    </button>
+                  )}
               </div>
             )}
             {error && (

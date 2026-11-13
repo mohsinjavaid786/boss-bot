@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Connections, connectionInput } from "./connections.ts";
 import { Store } from "./store.ts";
 import { route, type AgentRuntime } from "../../../packages/core/src/index.ts";
+import { workspacePath } from "./coding.ts";
 async function body(req: IncomingMessage) {
   let value = "";
   for await (const part of req) {
@@ -21,6 +22,7 @@ export function app(
   connections?: Connections,
 ) {
   const token = randomBytes(32).toString("hex");
+  const busyWorkspaces = new Set<string>();
   const server = createServer(async (req, res) => {
     const send = (status: number, data: unknown) => {
       res.writeHead(status, {
@@ -124,19 +126,62 @@ export function app(
               agentId: z.string().uuid(),
               prompt: z.string().trim().min(1).max(8000),
               runtimeId: z.string(),
+              workspace: z.string().trim().max(4096).default(""),
+              model: z
+                .string()
+                .trim()
+                .max(120)
+                .regex(/^[a-zA-Z0-9._:/-]*$/)
+                .default(""),
+              resumeTaskId: z
+                .union([z.string().uuid(), z.literal("")])
+                .default(""),
             })
             .parse(await body(req));
           route(
             activeProviders.map((p) => p.info),
             "local",
             data.runtimeId,
-            ["text"],
+            data.workspace ? ["text", "coding"] : ["text"],
           );
           if (!store.agents().some((a) => a.id === data.agentId))
             return send(404, { error: "Agent not found" });
+          const workspace = data.workspace
+            ? await workspacePath(data.workspace)
+            : undefined;
+          if ((data.model || data.resumeTaskId) && !workspace)
+            throw new Error(
+              "Model selection and continuation require a coding workspace.",
+            );
+          if (data.resumeTaskId) {
+            const parent = store
+              .tasks()
+              .find((t) => t.id === data.resumeTaskId);
+            if (
+              !parent?.execution?.sessionId ||
+              parent.runtimeId !== data.runtimeId ||
+              parent.agentId !== data.agentId ||
+              parent.execution.workspace !== workspace ||
+              !["completed", "failed", "interrupted"].includes(parent.status)
+            )
+              throw new Error(
+                "Continue a finished coding task using the same teammate, account and workspace.",
+              );
+          }
           return send(
             201,
-            store.createTask(data.agentId, data.prompt, data.runtimeId),
+            store.createTask(
+              data.agentId,
+              data.prompt,
+              data.runtimeId,
+              workspace
+                ? {
+                    workspace,
+                    model: data.model,
+                    resumeTaskId: data.resumeTaskId,
+                  }
+                : undefined,
+            ),
           );
         }
         const action = url.pathname.match(
@@ -164,23 +209,44 @@ export function app(
               activeProviders.map((p) => p.info),
               "local",
               task.runtimeId,
-              ["text"],
+              task.execution?.workspace ? ["text", "coding"] : ["text"],
             );
             if (task.runtimeId === "claude-native")
               return send(store.handoff(task.id) ? 202 : 409, { ok: true });
+            const workspace = task.execution?.workspace;
+            if (workspace) {
+              if ((await workspacePath(workspace)) !== workspace)
+                throw new Error(
+                  "Workspace changed. Create a new task after reviewing it.",
+                );
+              if (busyWorkspaces.has(workspace))
+                return send(409, {
+                  error:
+                    "This workspace is already running a coding task. Wait for it to finish.",
+                });
+            }
             if (!store.claim(task.id))
               return send(409, { error: "Task has already been reviewed." });
             const agent = store.agents().find((a) => a.id === task.agentId)!;
             const runtime = activeProviders.find(
               (p) => p.info.id === task.runtimeId,
             )!;
-            const signal = AbortSignal.timeout(180000);
+            if (workspace) busyWorkspaces.add(workspace);
+            const parent = store
+              .tasks()
+              .find((t) => t.id === task.execution?.resumeTaskId);
+            const signal = AbortSignal.timeout(workspace ? 1800000 : 180000);
             void runtime
               .execute(
                 {
                   instructions: agent.instructions,
                   memory: agent.memory,
                   prompt: task.prompt,
+                  workspace,
+                  model: task.execution?.model,
+                  resumeSessionId: parent?.execution?.sessionId,
+                  onSession: (id) => store.session(task.id, id),
+                  onProgress: (text) => store.progress(task.id, text),
                 },
                 signal,
               )
@@ -197,7 +263,10 @@ export function app(
                       ? error.message
                       : "Execution failed.",
                 ),
-              );
+              )
+              .finally(() => {
+                if (workspace) busyWorkspaces.delete(workspace);
+              });
             return send(202, { ok: true });
           }
         }

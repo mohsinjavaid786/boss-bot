@@ -1,6 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
-import type { Agent, Task } from "../../../packages/core/src/index.ts";
+import type {
+  Agent,
+  Task,
+  ExecutionOptions,
+} from "../../../packages/core/src/index.ts";
 export class Store {
   private db: DatabaseSync;
   constructor(path: string) {
@@ -10,6 +14,7 @@ export class Store {
    CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY,agentId TEXT NOT NULL REFERENCES agents(id),prompt TEXT NOT NULL,runtimeId TEXT NOT NULL,status TEXT NOT NULL,output TEXT NOT NULL DEFAULT '',createdAt TEXT NOT NULL,updatedAt TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT,taskId TEXT NOT NULL,event TEXT NOT NULL,createdAt TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS native_handoffs(taskId TEXT PRIMARY KEY REFERENCES tasks(id),prompt TEXT NOT NULL);
+   CREATE TABLE IF NOT EXISTS task_execution(taskId TEXT PRIMARY KEY REFERENCES tasks(id),options TEXT NOT NULL);
    PRAGMA user_version=1;`);
     if (!this.agents().length) {
       this.addAgent(
@@ -60,19 +65,48 @@ export class Store {
   }
   tasks(): Task[] {
     return this.db
-      .prepare("SELECT * FROM tasks ORDER BY createdAt DESC,rowid DESC")
-      .all() as unknown as Task[];
+      .prepare(
+        "SELECT tasks.*, task_execution.options FROM tasks LEFT JOIN task_execution ON tasks.id=task_execution.taskId ORDER BY tasks.createdAt DESC,tasks.rowid DESC",
+      )
+      .all()
+      .map(({ options, ...task }) => ({
+        ...task,
+        ...(options ? { execution: JSON.parse(String(options)) } : {}),
+      })) as unknown as Task[];
   }
-  createTask(agentId: string, prompt: string, runtimeId: string): Task {
+  createTask(
+    agentId: string,
+    prompt: string,
+    runtimeId: string,
+    execution?: ExecutionOptions,
+  ): Task {
     const now = new Date().toISOString();
     const id = randomUUID();
     this.transaction(() => {
       this.db
         .prepare("INSERT INTO tasks VALUES(?,?,?,?,'awaiting_approval','',?,?)")
         .run(id, agentId, prompt, runtimeId, now, now);
+      if (execution)
+        this.db
+          .prepare("INSERT INTO task_execution VALUES(?,?)")
+          .run(id, JSON.stringify(execution));
       this.event(id, "created");
     });
     return this.tasks().find((t) => t.id === id)!;
+  }
+  session(id: string, sessionId: string) {
+    const task = this.tasks().find((t) => t.id === id);
+    if (task?.status !== "running" || !task.execution?.workspace) return;
+    this.db
+      .prepare("UPDATE task_execution SET options=? WHERE taskId=?")
+      .run(JSON.stringify({ ...task.execution, sessionId }), id);
+  }
+  progress(id: string, text: string) {
+    this.db
+      .prepare(
+        "UPDATE tasks SET output=substr(output || ?, -24000),updatedAt=? WHERE id=? AND status='running'",
+      )
+      .run(text + "\n", new Date().toISOString(), id);
   }
   private transaction(fn: () => void) {
     this.db.exec("BEGIN IMMEDIATE");

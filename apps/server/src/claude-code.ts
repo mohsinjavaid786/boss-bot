@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runCoding } from "./coding.ts";
 import type { AgentRuntime } from "../../../packages/core/src/index.ts";
 
 /** Owner-operated CLI adapter. Authentication stays with the installed Claude Code. */
@@ -74,9 +75,9 @@ export function claudeCode(env: NodeJS.ProcessEnv): AgentRuntime {
       ownerId: "local",
       available: !!env.BOSS_CLAUDE_HOME,
       billing: "subscription",
-      capabilities: ["text"],
+      capabilities: ["text", "coding"],
       description:
-        "Runs approved text tasks through your local Claude Code login. No API-key fallback; tools are disabled.",
+        "Uses your local Claude Code login. Optional local workspace enables coding. No API-key fallback.",
     },
     async execute(input, signal) {
       if (!env.BOSS_CLAUDE_HOME)
@@ -94,6 +95,8 @@ export function claudeCode(env: NodeJS.ProcessEnv): AgentRuntime {
           throw new Error(
             "A verified Claude subscription login is required. Sign in through Claude Code for this directory. API and unknown authentication methods are refused.",
           );
+        if (input.workspace)
+          return await runCoding("claude-code", env, input, signal);
         const args = [
           "--print",
           "--output-format",
