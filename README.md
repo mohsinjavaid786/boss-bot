@@ -6,6 +6,53 @@ A self-hosted workspace for persistent AI teammates: give them a role, keep thei
 
 **Current release: foundation preview.** The app runs in your browser and supports one local owner. It has agent setup, memory, tasks, approvals and saved account connections. Persistent chat and a desktop app are not shipped yet.
 
+## How Boss Bot works
+
+```mermaid
+flowchart TD
+  UI["Browser workspace"] --> Server["Local Boss Bot server"]
+  Server --> State["Tasks, memory and account vault"]
+  Server --> Choice{"Selected runtime"}
+  Choice --> Codex["Codex CLI · your ChatGPT login"]
+  Choice --> Claude["Claude Code CLI · your Claude login"]
+  Choice --> API["Optional API · explicitly selected"]
+  Codex --> Work["Local coding workspace"]
+  Claude --> Work
+```
+
+The server runs on your machine. Each task uses the account you select; the
+official CLI manages subscription authentication. A coding workspace enables
+file edits and commands. API runtimes are a separate, explicit billing choice.
+
+[Quick start](#start-with-your-chatgpt-subscription) ·
+[Claude setup](#run-tasks-with-your-claude-subscription) ·
+[Coding tasks](#coding-with-subscription-accounts) ·
+[Troubleshooting](#troubleshooting)
+
+## Setup at a glance
+
+```mermaid
+flowchart TD
+  Prereq["Install Node.js, npm and your chosen CLI"] --> Clone["Clone repo and run npm ci"]
+  Clone --> Login{"Choose your subscription"}
+  Login --> Codex["Sign in with Codex"]
+  Login --> Claude["Sign in with Claude Code"]
+  Codex --> Account["Save the account directory"]
+  Claude --> Account
+  Account --> Start["Build, start and open the browser"]
+  Start --> Task["Create a task, review and approve"]
+```
+
+| You need                         | Check                                   |
+| -------------------------------- | --------------------------------------- |
+| Node.js 22.22+ or Node 24 LTS    | `node --version`                        |
+| npm and Git                      | `npm --version`, `git --version`        |
+| Your chosen official CLI         | `codex --version` or `claude --version` |
+| A signed-in subscription account | Use the matching setup below            |
+
+Choose either subscription to get started. Add the other later through
+**Connections**. Login directories must exist on the machine running Boss Bot.
+
 ## Start with your ChatGPT subscription
 
 You need Node.js 22.22+ or Node 24 LTS, npm, and the official Codex CLI installed. No API key is required for this path.
@@ -110,8 +157,37 @@ environment variables are not forwarded to subscription coding processes.
 The Codex coding path checks for a ChatGPT login before execution. A directory
 or a configured badge alone does not prove a valid login or available allowance.
 
-See the [DevAgent and Orca adapter review](docs/devagent-adapter-review.md) for
-the source comparison, remaining gaps and live acceptance steps.
+### Choose the task type
+
+|                     | Text task                              | Coding task                           |
+| ------------------- | -------------------------------------- | ------------------------------------- |
+| Workspace field     | Leave blank                            | Absolute path to an existing checkout |
+| Tools               | Claude tools disabled; Codex read-only | Local file edits and shell commands   |
+| Deadline            | 3 minutes                              | 30 minutes                            |
+| Native conversation | Fresh session                          | Saved session; **Continue task**      |
+| Typical use         | Draft, summarize or plan               | Change code and run tests             |
+
+### From request to result
+
+```mermaid
+flowchart TD
+  New["New task · select teammate and account"] --> Review{"Review task and workspace"}
+  Review -->|Decline| Rejected["No execution"]
+  Review -->|Approve| Run["Run the selected CLI"]
+  Run --> Outcome{"Outcome"}
+  Outcome -->|Completed| Result["Review result, diff and tests"]
+  Outcome -->|Failed or limited| Fix["Check login, model or allowance"]
+  Result --> Continue["Continue task · saved coding session"]
+  Fix --> Continue
+  Continue --> Review
+```
+
+**Continue task** appears only when a coding task has saved a native session.
+After a usage limit, wait for the provider to reset it before continuing.
+Each continuation is a new task that needs approval.
+
+For setup details, limitations and live acceptance steps, see the
+[subscription adapter guide](docs/subscription-adapters.md).
 
 ## What you can do today
 
@@ -163,6 +239,18 @@ The preview binds to loopback and has **one trusted local owner**. It does not h
 Text-only Codex runs read-only; coding uses workspace-write and refuses escalation. Local readable files may still be accessible. Use a trusted host and a dedicated login directory. Approval covers the task, not each internal CLI action. Isolated computers and exact action approvals are future work.
 
 The installed Codex CLI must support `exec --ignore-user-config --ignore-rules --ephemeral --sandbox read-only`; verify with `codex exec --help`. Node 22 may print an experimental SQLite warning.
+
+## Troubleshooting
+
+| What you see                     | What to do                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| CLI cannot start                 | Check its installation and set an absolute `BOSS_CODEX_BIN` or `BOSS_CLAUDE_BIN` path if needed. |
+| Login rejected or expired        | Sign in again through the official CLI using the same dedicated account directory.               |
+| Model unavailable                | Leave the model field blank or select a model available to that account.                         |
+| Subscription usage limit reached | Wait for reset, then use **Continue task** if a native session was saved.                        |
+| Workspace already running a task | Wait for that task to finish before approving another in the same workspace.                     |
+| Claude sandbox unavailable       | Install the sandbox prerequisites for your host; coding fails rather than disabling the sandbox. |
+| Browser cannot load the app      | Confirm `npm run build` completed and `npm start` is running; open http://127.0.0.1:4310.        |
 
 ## Development
 
