@@ -163,7 +163,9 @@ export function app(
               parent.runtimeId !== data.runtimeId ||
               parent.agentId !== data.agentId ||
               parent.execution.workspace !== workspace ||
-              !["completed", "failed", "interrupted", "cancelled"].includes(parent.status)
+              !["completed", "failed", "interrupted", "cancelled"].includes(
+                parent.status,
+              )
             )
               throw new Error(
                 "Continue a finished coding task using the same teammate, account and workspace.",
@@ -193,7 +195,10 @@ export function app(
           if (!task) return send(404, { error: "Task not found" });
           if (req.method === "POST" && action[2] === "stop") {
             const controller = executions.get(task.id);
-            if (!controller || !store.requestStop(task.id)) return send(409, { error: "Only a running task can be stopped." });
+            if (!controller || !store.requestStop(task.id))
+              return send(409, {
+                error: "Only a running task can be stopped.",
+              });
             controller.abort();
             return send(202, { ok: true });
           }
@@ -244,35 +249,52 @@ export function app(
               .find((t) => t.id === task.execution?.resumeTaskId);
             const controller = new AbortController();
             executions.set(task.id, controller);
-            const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(workspace ? 1800000 : 180000)]);
-            const finishCancelled = () => store.finish(task.id, "cancelled", ((store.tasks().find(t => t.id === task.id)?.output || "") + "\nStopped by you. Review any file changes before running again.").trim());
-            void Promise.resolve().then(() => runtime
-              .execute(
-                {
-                  instructions: agent.instructions,
-                  memory: agent.memory,
-                  prompt: task.prompt,
-                  workspace,
-                  model: task.execution?.model,
-                  resumeSessionId: parent?.execution?.sessionId,
-                  onSession: (id) => store.session(task.id, id),
-                  onProgress: (text) => store.progress(task.id, text),
-                },
-                signal,
-              ))
-              .then((output) => controller.signal.aborted ? finishCancelled() :
-                store.finish(task.id, "completed", output.slice(0, 100000)),
-              )
-              .catch((error) => controller.signal.aborted ? finishCancelled() :
-                store.finish(
-                  task.id,
-                  "failed",
-                  signal.aborted
-                    ? "Execution timed out. Review before starting again."
-                    : error instanceof Error
-                      ? error.message
-                      : "Execution failed.",
+            const signal = AbortSignal.any([
+              controller.signal,
+              AbortSignal.timeout(workspace ? 1800000 : 180000),
+            ]);
+            const finishCancelled = () =>
+              store.finish(
+                task.id,
+                "cancelled",
+                (
+                  (store.tasks().find((t) => t.id === task.id)?.output || "") +
+                  "\nStopped by you. Review any file changes before running again."
+                ).trim(),
+              );
+            void Promise.resolve()
+              .then(() =>
+                runtime.execute(
+                  {
+                    instructions: agent.instructions,
+                    memory: agent.memory,
+                    prompt: task.prompt,
+                    workspace,
+                    model: task.execution?.model,
+                    resumeSessionId: parent?.execution?.sessionId,
+                    onSession: (id) => store.session(task.id, id),
+                    onProgress: (text) => store.progress(task.id, text),
+                  },
+                  signal,
                 ),
+              )
+              .then((output) =>
+                controller.signal.aborted
+                  ? finishCancelled()
+                  : store.finish(task.id, "completed", output.slice(0, 100000)),
+              )
+              .catch((error) =>
+                controller.signal.aborted
+                  ? finishCancelled()
+                  : store.finish(
+                      task.id,
+                      "failed",
+                      signal.aborted
+                        ? "Execution timed out. Review before starting again."
+                        : error instanceof Error
+                          ? error.message
+                          : "Execution failed.",
+                    ),
               )
               .finally(() => {
                 executions.delete(task.id);

@@ -36,7 +36,9 @@ export class Store {
         "teal",
       );
     }
-    for (const task of this.tasks().filter((t) => ["running", "stopping"].includes(t.status)))
+    for (const task of this.tasks().filter((t) =>
+      ["running", "stopping"].includes(t.status),
+    ))
       this.finish(
         task.id,
         "interrupted",
@@ -164,7 +166,11 @@ export class Store {
   requestStop(id: string) {
     let changed = false;
     this.transaction(() => {
-      changed = !!this.db.prepare("UPDATE tasks SET status='stopping',updatedAt=? WHERE id=? AND status='running'").run(new Date().toISOString(), id).changes;
+      changed = !!this.db
+        .prepare(
+          "UPDATE tasks SET status='stopping',updatedAt=? WHERE id=? AND status='running'",
+        )
+        .run(new Date().toISOString(), id).changes;
       if (changed) this.event(id, "stop_requested");
     });
     return changed;

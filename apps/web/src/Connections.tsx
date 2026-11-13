@@ -241,7 +241,11 @@ export function ConnectionManager({
                 name="model"
                 required={provider === "claude"}
                 maxLength={120}
-                placeholder={provider === "claude" ? "Enter a model available to your API account" : "Optional: use the CLI default"}
+                placeholder={
+                  provider === "claude"
+                    ? "Enter a model available to your API account"
+                    : "Optional: use the CLI default"
+                }
                 disabled={busy}
               />
             </label>
@@ -319,10 +323,42 @@ export function ConnectionManager({
                   </button>
                 </>
               )}
-              {disconnecting !== c.id && <button disabled={busy} onClick={() => setDisconnecting(c.id)}>Disconnect</button>}
-
+              {disconnecting !== c.id && (
+                <button disabled={busy} onClick={() => setDisconnecting(c.id)}>
+                  Disconnect
+                </button>
+              )}
             </div>
-            {disconnecting === c.id && <div className="disconnect-confirm"><strong>Disconnect {c.label}?</strong><p>Pending tasks will lose access. This does not stop running work or revoke the provider login.</p><div className="account-actions"><button className="danger-button" disabled={busy} onClick={() => void action(async () => {await request("/api/connections/"+c.id, "DELETE");if(catalog?.id===c.id) setCatalog(null);setDisconnecting(null);})}>{busy ? "Disconnecting…" : "Disconnect account"}</button><button disabled={busy} onClick={() => setDisconnecting(null)}>Keep account</button></div></div>}
+            {disconnecting === c.id && (
+              <div className="disconnect-confirm">
+                <strong>Disconnect {c.label}?</strong>
+                <p>
+                  Pending tasks will lose access. This does not stop running
+                  work or revoke the provider login.
+                </p>
+                <div className="account-actions">
+                  <button
+                    className="danger-button"
+                    disabled={busy}
+                    onClick={() =>
+                      void action(async () => {
+                        await request("/api/connections/" + c.id, "DELETE");
+                        if (catalog?.id === c.id) setCatalog(null);
+                        setDisconnecting(null);
+                      })
+                    }
+                  >
+                    {busy ? "Disconnecting…" : "Disconnect account"}
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() => setDisconnecting(null)}
+                  >
+                    Keep account
+                  </button>
+                </div>
+              </div>
+            )}
           </article>
         ))}
       </div>
